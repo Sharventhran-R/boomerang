@@ -1,4 +1,4 @@
-@[Project Memory](AGENT_MEMORY.md)
+@[Project Memory](.agents/AGENT_MEMORY.md)
 
 ## Tech Stack
 - Backend: Python 3.12+, FastAPI, SQLAlchemy 2.x, PostgreSQL/PostGIS, aiokafka, Pydantic v2.
@@ -21,7 +21,7 @@
 1. **Minimal Diffs**: Make precise, in-place edits. Do not rewrite files unnecessarily.
 2. **Strict Typing**: Zero tolerance for untyped or loose variables. All Python code must pass `mypy --strict`.
 3. **Mandatory Tests**: Run the appropriate single-test or typecheck command before marking a task as complete.
-4. **Session Logging**: Update `AGENT_MEMORY.md` under `# Session Log` after completing substantive milestones.
+4. **Session Logging**: Update `.agents/AGENT_MEMORY.md` under `# Session Log` after completing substantive milestones.
 5. **No Global Dependencies**: Use `.venv\Scripts\python.exe` for all tool executions.
 6. **Manual Git Operations**: Never execute `git` commands autonomously (like `git add`, `git commit`). Always ask the user to perform them manually.
 

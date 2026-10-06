@@ -288,26 +288,27 @@ Prioritize: Correctness, Maintainability, Strong typing, Testability, Separation
 Avoid: Premature optimization, unnecessary abstraction, microservices, ML, payment processing, untyped code.
 
 ## 20. Agentic Development Workflow
-PLAN -> IMPLEMENT -> TEST -> VERIFY -> REVIEW DIFF -> UPDATE AGENT_MEMORY.md -> COMMIT -> NEXT AUTHORIZED TASK
+PLAN -> IMPLEMENT -> TEST -> VERIFY -> REVIEW DIFF -> UPDATE .agents/AGENT_MEMORY.md -> COMMIT -> NEXT AUTHORIZED TASK
 Every milestone must have explicit acceptance criteria. Must run relevant tests before completing tasks.
 
 ## 21. Current Workspace Files
 ```text
 project/
 ├── .venv/
+├── .agents/
+│   ├── AGENTS.md
+│   ├── AGENT_MEMORY.md
+│   └── PROJECT_SPEC.md
 ├── app/
 ├── tests/
 ├── pyproject.toml
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
-├── AGENTS.md
-├── AGENT_MEMORY.md
-├── PROJECT_SPEC.md
 └── README.md
 ```
 
 ## 22. Separation of Responsibilities
-- **AGENTS.md**: HOW the agent works (rules, commands, guardrails). References AGENT_MEMORY.md using `@[Project Memory](AGENT_MEMORY.md)`.
-- **PROJECT_SPEC.md**: WHAT the project is (objectives, roadmap, architecture).
-- **AGENT_MEMORY.md**: WHAT HAS ALREADY HAPPENED (current state, log, architecture decisions).
+- **.agents/AGENTS.md**: HOW the agent works (rules, commands, guardrails). References AGENT_MEMORY.md using `@[Project Memory](.agents/AGENT_MEMORY.md)`.
+- **.agents/PROJECT_SPEC.md**: WHAT the project is (objectives, roadmap, architecture).
+- **.agents/AGENT_MEMORY.md**: WHAT HAS ALREADY HAPPENED (current state, log, architecture decisions).
