@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "tracker_db"
     POSTGRES_PORT: int = 5432
 
+    # JWT Authentication
+    SECRET_KEY: str = "CHANGEME_IN_PRODUCTION_must_be_32_chars"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     @property
     def sync_database_url(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

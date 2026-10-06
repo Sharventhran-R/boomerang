@@ -15,3 +15,5 @@ ruff>=0.0.280
 mypy>=1.5.0
 httpx>=0.24.1
 greenlet>=3.0.0
+argon2-cffi>=23.0.0
+email-validator>=2.0.0

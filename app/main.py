@@ -4,9 +4,14 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.auth import auth_router, users_router
+from app.core.config import settings
 from app.db.database import get_db
 
 app = FastAPI(title="Community Missing Item & Asset Tracker")
+
+app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 
 
 @app.get("/health")

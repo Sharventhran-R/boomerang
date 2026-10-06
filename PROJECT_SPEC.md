@@ -228,7 +228,8 @@ Important:
 The exact field/type/constraints will be finalized during Phase 2.
 
 ## 12. Authentication & Security
-Eventual application must use JWT authentication. Security requirements: Registration, Login, Password hashing, Protected endpoints, Authorization, User ownership checks, Rate limiting, Spam/duplicate prevention, Secure environment variables. No secrets in Git.
+Eventual application must use JWT authentication. Security requirements: Registration, Login, Password hashing (Argon2id), Protected endpoints, Authorization, User ownership checks, Rate limiting, Spam/duplicate prevention, Secure environment variables. No secrets in Git.
+*Deferred features (to be implemented in future phases): Email Verification, Multi-Factor Authentication (MFA), password reset workflows.*
 
 ## 13. Python Development Environment
 The backend must use a project-local Python virtual environment: `.venv/`
@@ -265,7 +266,8 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 ## 17. Current State
 - Phase 0 complete
 - Phase 1 complete
-- Phase 2 not yet implemented
+- Phase 2 complete
+- Phase 3 complete
 - PostgreSQL + PostGIS infrastructure is operational
 - FastAPI skeleton is operational
 - `/health` endpoint works

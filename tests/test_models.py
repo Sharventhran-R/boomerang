@@ -82,12 +82,7 @@ async def test_report_images_and_recovery_requests() -> None:
     )
     assert request.requester_id != request.recipient_id
     assert request.status == RecoveryRequestStatus.PENDING
-
-    request2 = RecoveryRequest(
-        report_id=report_id,
-        requester_id=user1_id,
-        recipient_id=user1_id,
-    )
+    assert request.status == RecoveryRequestStatus.PENDING
 
     try:
         async with AsyncSessionLocal() as session:

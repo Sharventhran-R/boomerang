@@ -40,4 +40,13 @@
   - Verified constraints successfully (Duplicate email rejection, negative reward rejection, self-recovery rejection, and foreign keys).
   - Verified recovery directions work appropriately without directionality assumptions.
   - Re-ran tests natively, resulting in 4 passing tests.
-  - Next authorized phase: Phase 3 — Authentication & Authorization.
+- 2026-10-06: Completed Phase 3 (Authentication & Authorization).
+  - Created `UserSession` model for storing hashed refresh tokens.
+  - Implemented JWT encoding/decoding using `PyJWT`.
+  - Implemented secure password hashing using `argon2-cffi`.
+  - Implemented authentication schemas (`UserCreate`, `UserLogin`, `Token`, `RefreshTokenRequest`).
+  - Implemented API endpoints `/api/v1/auth/register`, `/login`, `/refresh`, `/logout`, and `/users/me`.
+  - Added FastAPI dependencies for current user retrieval via JWT.
+  - Formatted codebase, fixed typing, and created robust async integration tests using `httpx` (passing).
+  - Advanced features like Email verification and MFA are intentionally deferred to future phases.
+  - Next authorized phase: Phase 4 — Missing/Found Reports.
