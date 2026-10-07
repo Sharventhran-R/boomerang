@@ -50,3 +50,12 @@
   - Formatted codebase, fixed typing, and created robust async integration tests using `httpx` (passing).
   - Advanced features like Email verification and MFA are intentionally deferred to future phases.
   - Next authorized phase: Phase 4 — Missing/Found Reports.
+- 2026-10-07: Completed Phase 4 (Report Management + Basic Search + Images).
+  - Implemented S3-compatible local object storage configuration using `aioboto3` (MinIO support).
+  - Implemented report services (`create_report`, `list_reports`, `get_report_by_id`, `update_report`, `upload_report_image`, `delete_report_image`).
+  - Solved complex PostGIS parsing errors by correctly utilizing `WKTElement(..., srid=4326)` and `func.ST_X/Y(Report.location.cast(Geometry))`.
+  - Implemented secure report endpoints (`/api/v1/reports`) with route-level authorization (only creators can modify/upload/delete).
+  - Added strict status transition constraints (e.g., ACTIVE -> RESOLVED/CANCELLED).
+  - Configured `NullPool` in SQLAlchemy testing teardowns to resolve transaction rollback `InterfaceError`s.
+  - Formatted codebase, fixed typing, and created robust async integration tests using `httpx` (all tests passing).
+  - Next authorized phase: No further phases. Do NOT implement Phase 5+ functionality.

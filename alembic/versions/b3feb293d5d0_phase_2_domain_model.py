@@ -8,7 +8,9 @@ Create Date: 2026-10-06 16:33:17.817404
 
 from collections.abc import Sequence
 
+import geoalchemy2
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -17,10 +19,6 @@ revision: str = "b3feb293d5d0"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-
-import geoalchemy2
-from sqlalchemy.dialects import postgresql
 
 
 def upgrade() -> None:

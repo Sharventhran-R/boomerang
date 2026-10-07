@@ -69,8 +69,13 @@ async def test_report_images_and_recovery_requests() -> None:
     user2_id = uuid.uuid4()
     report_id = uuid.uuid4()
 
-    image = ReportImage(report_id=report_id, image_url="http://example.com/image.jpg")
-    assert image.image_url == "http://example.com/image.jpg"
+    image = ReportImage(
+        report_id=report_id,
+        object_key="reports/123/img.jpg",
+        content_type="image/jpeg",
+        file_size=1024,
+    )
+    assert image.object_key == "reports/123/img.jpg"
 
     request = RecoveryRequest(
         report_id=report_id,

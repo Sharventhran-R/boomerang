@@ -20,12 +20,12 @@ from sqlalchemy.sql import func
 from app.db.database import Base
 
 
-class ReportType(str, enum.Enum):
+class ReportType(enum.StrEnum):
     MISSING = "MISSING"
     FOUND = "FOUND"
 
 
-class ReportCategory(str, enum.Enum):
+class ReportCategory(enum.StrEnum):
     ELECTRONICS = "ELECTRONICS"
     DOCUMENT = "DOCUMENT"
     WALLET = "WALLET"
@@ -38,14 +38,14 @@ class ReportCategory(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class ReportStatus(str, enum.Enum):
+class ReportStatus(enum.StrEnum):
     ACTIVE = "ACTIVE"
     RESOLVED = "RESOLVED"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
 
 
-class RecoveryRequestStatus(str, enum.Enum):
+class RecoveryRequestStatus(enum.StrEnum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
@@ -179,7 +179,9 @@ class ReportImage(Base):
     report_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("reports.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    image_url: Mapped[str] = mapped_column(String, nullable=False)
+    object_key: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, nullable=False)
+    file_size: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
