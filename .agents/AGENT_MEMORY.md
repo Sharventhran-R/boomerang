@@ -58,4 +58,9 @@
   - Added strict status transition constraints (e.g., ACTIVE -> RESOLVED/CANCELLED).
   - Configured `NullPool` in SQLAlchemy testing teardowns to resolve transaction rollback `InterfaceError`s.
   - Formatted codebase, fixed typing, and created robust async integration tests using `httpx` (all tests passing).
+- 2026-10-07: Fixed MinIO Integration Tests.
+  - Replaced `quay.io/minio/aistor/minio` (which required a license) with a free community MinIO image (`elestio/minio`).
+  - Added real MinIO integration tests (`test_real_minio_image_upload`, `test_real_minio_image_delete`) that interact directly with the API and S3 bucket without mocking.
+  - Reconfigured tests to check MinIO availability using `head_bucket` on the target bucket, properly failing on authentication/license errors but skipping gracefully only on genuine network unreachability.
+  - Result: 17 integration tests passing. No skipped MinIO tests.
   - Next authorized phase: No further phases. Do NOT implement Phase 5+ functionality.

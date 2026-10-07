@@ -215,3 +215,146 @@ async def test_upload_image(
     )
     assert upload_res.status_code == 201
     assert upload_res.json()["object_key"] == "fake_key.jpg"
+
+
+@pytest.mark.asyncio
+async def test_real_minio_image_upload(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    from io import BytesIO
+
+    import botocore.exceptions
+
+    from app.core.config import settings
+    from app.services.storage import get_s3_client, init_bucket
+
+    # Check MinIO availability using a bucket-level operation
+    async with get_s3_client() as s3:
+        try:
+            await s3.head_bucket(Bucket=settings.S3_BUCKET_NAME)
+        except (
+            botocore.exceptions.EndpointConnectionError,
+            botocore.exceptions.ConnectTimeoutError,
+        ):
+            pytest.skip("MinIO is not available for integration tests")
+        except botocore.exceptions.ClientError:
+            # 404 Not Found, 403 Forbidden, etc., indicate MinIO is reachable
+            pass
+
+    await init_bucket()
+
+    # Create
+    create_res = await client.post(
+        "/api/v1/reports",
+        headers=auth_headers,
+        json={
+            "type": "MISSING",
+            "title": "Lost item minio",
+            "description": "desc",
+            "category": "OTHER",
+            "latitude": 0,
+            "longitude": 0,
+            "event_time": "2023-10-01T12:00:00Z",
+        },
+    )
+    report_id = create_res.json()["id"]
+
+    # Upload Image without mocking
+    files = {"file": ("test.jpg", BytesIO(b"fake image data"), "image/jpeg")}
+    upload_res = await client.post(
+        f"/api/v1/reports/{report_id}/images",
+        headers=auth_headers,
+        files=files,
+    )
+    assert upload_res.status_code == 201
+    image_data = upload_res.json()
+    object_key = image_data["object_key"]
+
+    # Verify object actually exists in MinIO
+    async with get_s3_client() as s3:
+        try:
+            head_res = await s3.head_object(
+                Bucket=settings.S3_BUCKET_NAME, Key=object_key
+            )
+            assert head_res["ContentLength"] == len(b"fake image data")
+        except botocore.exceptions.ClientError as e:
+            pytest.fail(f"Object not found in MinIO: {e}")
+        finally:
+            # Clean up MinIO object explicitly just in case
+            await s3.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+
+
+@pytest.mark.asyncio
+async def test_real_minio_image_delete(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    from io import BytesIO
+
+    import botocore.exceptions
+
+    from app.core.config import settings
+    from app.services.storage import get_s3_client, init_bucket
+
+    # Check MinIO availability using a bucket-level operation
+    async with get_s3_client() as s3:
+        try:
+            await s3.head_bucket(Bucket=settings.S3_BUCKET_NAME)
+        except (
+            botocore.exceptions.EndpointConnectionError,
+            botocore.exceptions.ConnectTimeoutError,
+        ):
+            pytest.skip("MinIO is not available for integration tests")
+        except botocore.exceptions.ClientError:
+            # 404 Not Found, 403 Forbidden, etc., indicate MinIO is reachable
+            pass
+
+    await init_bucket()
+
+    # Create report
+    create_res = await client.post(
+        "/api/v1/reports",
+        headers=auth_headers,
+        json={
+            "type": "MISSING",
+            "title": "Lost item minio del",
+            "description": "desc",
+            "category": "OTHER",
+            "latitude": 0,
+            "longitude": 0,
+            "event_time": "2023-10-01T12:00:00Z",
+        },
+    )
+    report_id = create_res.json()["id"]
+
+    # Upload Image
+    files = {"file": ("test.jpg", BytesIO(b"fake image data delete"), "image/jpeg")}
+    upload_res = await client.post(
+        f"/api/v1/reports/{report_id}/images",
+        headers=auth_headers,
+        files=files,
+    )
+    assert upload_res.status_code == 201
+    image_data = upload_res.json()
+    object_key = image_data["object_key"]
+    image_id = image_data["id"]
+
+    # Delete Image via API
+    del_res = await client.delete(
+        f"/api/v1/reports/{report_id}/images/{image_id}",
+        headers=auth_headers,
+    )
+    assert del_res.status_code == 204
+
+    # Verify object no longer exists in MinIO
+    async with get_s3_client() as s3:
+        with pytest.raises(botocore.exceptions.ClientError) as exc_info:
+            await s3.head_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+        assert "404" in str(exc_info.value)
+
+    # Verify report_images metadata is removed from DB
+    get_res = await client.get(
+        f"/api/v1/reports/{report_id}",
+        headers=auth_headers,
+    )
+    assert get_res.status_code == 200
+    assert len(get_res.json()["images"]) == 0
