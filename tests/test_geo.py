@@ -221,9 +221,14 @@ async def test_radius_filtering(client: AsyncClient) -> None:
         headers=headers,
     )
     assert res.status_code == 200
-    titles = [r["title"] for r in res.json()["items"]]
+    items = res.json()["items"]
+    titles = [r["title"] for r in items]
     assert f"Base_{run_id}" in titles
     assert f"Inside1km_{run_id}" not in titles
+
+    # Verify distance_km is 0.00 for exact match
+    base_item = next(r for r in items if r["title"] == f"Base_{run_id}")
+    assert base_item["distance_km"] == 0.00
 
     # Test 2: radius 1.0 km (Should return Base and Inside1km)
     res = await client.get(
@@ -232,10 +237,17 @@ async def test_radius_filtering(client: AsyncClient) -> None:
         headers=headers,
     )
     assert res.status_code == 200
-    titles = [r["title"] for r in res.json()["items"]]
+    items = res.json()["items"]
+    titles = [r["title"] for r in items]
     assert f"Base_{run_id}" in titles
     assert f"Inside1km_{run_id}" in titles
     assert f"Outside1km_{run_id}" not in titles
+
+    # Verify distance is calculated and positive for nearby report
+    inside_item = next(r for r in items if r["title"] == f"Inside1km_{run_id}")
+    assert inside_item["distance_km"] is not None
+    assert inside_item["distance_km"] > 0.0
+    assert inside_item["distance_km"] < 1.0
 
     # Test 3: radius 5.0 km (Should return Base, Inside1km, Outside1km)
     res = await client.get(
@@ -271,8 +283,13 @@ async def test_radius_filtering(client: AsyncClient) -> None:
         "/api/v1/reports", params={"search": f"Outside5km_{run_id}"}, headers=headers
     )
     assert res.status_code == 200
-    titles = [r["title"] for r in res.json()["items"]]
+    items = res.json()["items"]
+    titles = [r["title"] for r in items]
     assert f"Outside5km_{run_id}" in titles
+
+    # Verify distance is not calculated for non-geo search
+    outside_item = next(r for r in items if r["title"] == f"Outside5km_{run_id}")
+    assert outside_item.get("distance_km") is None
 
     # Note: Boundary inclusion (exactly on radius) is inherently handled by
     # PostGIS ST_DWithin (use_spheroid=True) being inclusive.

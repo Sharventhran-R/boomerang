@@ -75,6 +75,7 @@ class ReportResponse(BaseModel):
     status: ReportStatus
     created_at: datetime
     updated_at: datetime
+    distance_km: float | None = None
     images: list[ReportImageResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

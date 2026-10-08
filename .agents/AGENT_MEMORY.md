@@ -79,3 +79,10 @@
   - Corrected GeoAlchemy2 interaction for distance computation by casting inputs strictly for safe PostGIS boundary indexing.
   - Constructed exact precise integration tests covering inside radius boundaries, exactly out-of-bounds, and extreme ranges.
   - Ensured spatial searching layers non-destructively alongside pagination, text searches, and explicit model conditions.
+- 2026-10-08: Completed Phase 5.3 (PostGIS Distance Calculation).
+  - Added `distance_km` computed property to `ReportResponse` schema.
+  - Integrated `func.ST_Distance` calculation natively within PostGIS query for geographic spatial boundaries mapping to precise physical distance.
+  - Included math handling distance translation seamlessly converting raw PostGIS output strictly from `meters` to `kilometers` bounded to exact 2-decimal rounded precision safely filtering exact overlapping matches (`0.00`).
+  - Assured `distance_km` stays functionally removed (`None`) for traditional textual or category searches properly isolating spatial and index layers.
+  - Developed and verified complex integration tests assessing output boundaries checking precise return outputs seamlessly over varying geographic ranges.
+  - Intentionally deferred Phase 5.4 functionality (distance sorting).

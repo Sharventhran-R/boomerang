@@ -4,7 +4,7 @@ from typing import Any, cast
 from fastapi import UploadFile
 from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import asc, desc, func, null, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -116,12 +116,6 @@ async def list_reports(
     sort: str = "newest",
     geo: GeoSearchParams | None = None,
 ) -> dict[str, Any]:
-    query = select(
-        Report,
-        func.ST_Y(Report.location.cast(Geometry)).label("latitude"),
-        func.ST_X(Report.location.cast(Geometry)).label("longitude"),
-    ).options(selectinload(Report.images))
-
     count_query = select(func.count(Report.id))
 
     filters = []
@@ -140,6 +134,7 @@ async def list_reports(
             )
         )
 
+    distance_col = null().label("distance")
     if (
         geo
         and geo.latitude is not None
@@ -149,6 +144,14 @@ async def list_reports(
         radius_meters = float(geo.radius_km) * 1000.0
         search_point = WKTElement(f"POINT({geo.longitude} {geo.latitude})", srid=4326)
         filters.append(func.ST_DWithin(Report.location, search_point, radius_meters))
+        distance_col = func.ST_Distance(Report.location, search_point).label("distance")
+
+    query = select(
+        Report,
+        func.ST_Y(Report.location.cast(Geometry)).label("latitude"),
+        func.ST_X(Report.location.cast(Geometry)).label("longitude"),
+        distance_col,
+    ).options(selectinload(Report.images))
 
     if filters:
         query = query.where(*filters)
@@ -168,9 +171,11 @@ async def list_reports(
     rows = items_result.all()
 
     items = []
-    for r, lat, lon in rows:
+    for r, lat, lon, dist in rows:
         r.latitude = lat
         r.longitude = lon
+        if dist is not None:
+            r.distance_km = round(dist / 1000.0, 2)
         items.append(r)
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
