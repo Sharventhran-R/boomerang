@@ -86,3 +86,9 @@
   - Assured `distance_km` stays functionally removed (`None`) for traditional textual or category searches properly isolating spatial and index layers.
   - Developed and verified complex integration tests assessing output boundaries checking precise return outputs seamlessly over varying geographic ranges.
   - Intentionally deferred Phase 5.4 functionality (distance sorting).
+- 2026-10-08: Completed Phase 5.4 (Search + Distance Sorting Integration).
+  - Configured `sort=distance` parameter logic extending validation specifically mapping onto mandatory latitude/longitude/radius combinations effectively enforcing 422 validations precisely correctly when missing.
+  - Implemented deep database tier SQL ordering `asc(distance_col), desc(Report.created_at), asc(Report.id)` safely structuring determinism avoiding pagination inconsistencies across equal ranges.
+  - Structured ordering natively interacting securely within `.limit(page_size)` maintaining execution efficiency completely avoiding python level data ingestion sorting overheads securely via PostGIS `ST_Distance`.
+  - Added deterministic tests asserting sorting boundary logic precisely (testing output order correctly mapping exactly distance calculations while asserting 5km out of bounds distances are excluded correctly).
+  - Ensured original sort options (`newest`/`oldest`) run identically properly isolating logic paths securely.

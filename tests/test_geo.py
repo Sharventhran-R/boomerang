@@ -294,3 +294,108 @@ async def test_radius_filtering(client: AsyncClient) -> None:
     # Note: Boundary inclusion (exactly on radius) is inherently handled by
     # PostGIS ST_DWithin (use_spheroid=True) being inclusive.
     # Radius 0.0 covers this boundary edge case perfectly.
+
+
+@pytest.mark.asyncio
+async def test_distance_sorting(client: AsyncClient) -> None:
+    import uuid
+    from datetime import UTC, datetime
+
+    user_id = uuid.uuid4().hex[:6]
+    test_email = f"geo_sort_{user_id}@example.com"
+
+    res = await client.post(
+        "/api/v1/auth/register",
+        json={"name": "Geo Sort", "email": test_email, "password": "password123"},
+    )
+    res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": test_email, "password": "password123"},
+    )
+    token = res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    base_lat, base_lon = 10.0, 10.0
+    run_id = uuid.uuid4().hex[:6]
+
+    # Create reports at varying distances.
+    # Also add two reports at the exact same distance to test deterministic ordering.
+    reports_data = [
+        {"lat": 10.05, "lon": 10.0, "title": f"D_{run_id}"},  # ~5.5 km
+        {"lat": 10.0, "lon": 10.0, "title": f"A_{run_id}"},  # 0.0 km
+        {"lat": 10.01, "lon": 10.0, "title": f"C_{run_id}"},  # ~1.11 km
+        {"lat": 10.005, "lon": 10.0, "title": f"B1_{run_id}"},  # ~0.55 km (first)
+        {"lat": 10.005, "lon": 10.0, "title": f"B2_{run_id}"},  # ~0.55 km (second)
+    ]
+
+    for rd in reports_data:
+        await client.post(
+            "/api/v1/reports",
+            json={
+                "type": "MISSING",
+                "title": rd["title"],
+                "description": "Geo sort report",
+                "category": "OTHER",
+                "latitude": rd["lat"],
+                "longitude": rd["lon"],
+                "event_time": datetime.now(UTC).isoformat(),
+            },
+            headers=headers,
+        )
+
+    # Fetch sorted by distance
+    res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "sort": "distance",
+            "search": run_id,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    items = res.json()["items"]
+    titles = [r["title"] for r in items]
+
+    # Assert ordering is correct: A (0km) -> B1/B2 (0.55km) -> C (1.11km)
+    # -> D should NOT be in result because radius_km=5.0 and D is ~5.5km
+    assert f"A_{run_id}" in titles
+    assert f"C_{run_id}" in titles
+    assert f"D_{run_id}" not in titles
+
+    # A is closest
+    assert titles[0] == f"A_{run_id}"
+
+    # Verify B2 comes before B1 because of desc(created_at)
+    # (since B2 was created after B1)
+    # wait, B1 and B2 have same distance.
+    # The sort order is distance ASC, created_at DESC, id ASC.
+    # B2 was created after B1, so B2 should come before B1 in created_at DESC.
+    b1_idx = titles.index(f"B1_{run_id}")
+    b2_idx = titles.index(f"B2_{run_id}")
+    assert b2_idx < b1_idx
+
+    # C is after B
+    c_idx = titles.index(f"C_{run_id}")
+    assert c_idx > b1_idx
+
+    # Pagination + Distance
+    res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "sort": "distance",
+            "search": run_id,
+            "page_size": 2,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    items = res.json()["items"]
+    assert len(items) == 2
+    assert items[0]["title"] == f"A_{run_id}"
+    assert items[1]["title"] == f"B2_{run_id}"

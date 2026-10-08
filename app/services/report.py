@@ -157,7 +157,11 @@ async def list_reports(
         query = query.where(*filters)
         count_query = count_query.where(*filters)
 
-    if sort == "newest":
+    if sort == "distance":
+        query = query.order_by(
+            asc(distance_col), desc(Report.created_at), asc(Report.id)
+        )
+    elif sort == "newest":
         query = query.order_by(desc(Report.created_at))
     else:
         query = query.order_by(asc(Report.created_at))
