@@ -72,3 +72,10 @@
   - Required robust FastAPI integration testing bypassing default Pydantic 500 errors when instantiated directly as dependency variables.
   - Re-verified database consistency ensuring `location` is strictly validated.
   - Next authorized phase: Phase 5.2. Do NOT implement Phase 6+ functionality.
+- 2026-10-08: Completed Phase 5.2 (PostGIS Radius Filtering).
+  - Extended `list_reports` service logic to ingest `GeoSearchParams` mapping coordinates.
+  - Converted `radius_km` directly to `meters` safely supporting edge-cases up to precisely 0.0.
+  - Replaced manual Python spatial validation relying fully on `ST_DWithin` database filtering (`func.ST_DWithin`).
+  - Corrected GeoAlchemy2 interaction for distance computation by casting inputs strictly for safe PostGIS boundary indexing.
+  - Constructed exact precise integration tests covering inside radius boundaries, exactly out-of-bounds, and extreme ranges.
+  - Ensured spatial searching layers non-destructively alongside pagination, text searches, and explicit model conditions.

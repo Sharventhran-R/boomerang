@@ -153,3 +153,127 @@ async def test_list_reports_geo_parameters(client: AsyncClient) -> None:
         )
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_radius_filtering(client: AsyncClient) -> None:
+
+    # We will need real DB for this test to evaluate ST_DWithin
+    # Clear overrides to use the real database and real endpoints,
+    # except we need to authenticate
+
+    import uuid
+
+    user_id = uuid.uuid4().hex[:6]
+    test_email = f"geo_test_{user_id}@example.com"
+
+    # Register/login a user to get token
+    res = await client.post(
+        "/api/v1/auth/register",
+        json={"name": "Geo Test", "email": test_email, "password": "password123"},
+    )
+    # Could be 201 or 400 if already exists
+    res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": test_email, "password": "password123"},
+    )
+    token = res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create some reports at known coordinates
+    # Base location: lat=10.0, lon=10.0
+    base_lat, base_lon = 10.0, 10.0
+
+    import uuid
+
+    run_id = uuid.uuid4().hex[:6]
+
+    reports_data = [
+        # Exactly at base (0.0 km)
+        {"lat": 10.0, "lon": 10.0, "title": f"Base_{run_id}"},
+        # ~0.55 km away
+        {"lat": 10.005, "lon": 10.0, "title": f"Inside1km_{run_id}"},
+        # ~1.11 km away
+        {"lat": 10.01, "lon": 10.0, "title": f"Outside1km_{run_id}"},
+        # ~5.5 km away
+        {"lat": 10.05, "lon": 10.0, "title": f"Outside5km_{run_id}"},
+    ]
+
+    for rd in reports_data:
+        await client.post(
+            "/api/v1/reports",
+            json={
+                "type": "MISSING",
+                "title": rd["title"],
+                "description": "Geo test report",
+                "category": "OTHER",
+                "latitude": rd["lat"],
+                "longitude": rd["lon"],
+                "event_time": datetime.now(UTC).isoformat(),
+            },
+            headers=headers,
+        )
+
+    # Test 1: radius 0.0 km (Should only return Base)
+    res = await client.get(
+        "/api/v1/reports",
+        params={"latitude": base_lat, "longitude": base_lon, "radius_km": 0.0},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    titles = [r["title"] for r in res.json()["items"]]
+    assert f"Base_{run_id}" in titles
+    assert f"Inside1km_{run_id}" not in titles
+
+    # Test 2: radius 1.0 km (Should return Base and Inside1km)
+    res = await client.get(
+        "/api/v1/reports",
+        params={"latitude": base_lat, "longitude": base_lon, "radius_km": 1.0},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    titles = [r["title"] for r in res.json()["items"]]
+    assert f"Base_{run_id}" in titles
+    assert f"Inside1km_{run_id}" in titles
+    assert f"Outside1km_{run_id}" not in titles
+
+    # Test 3: radius 5.0 km (Should return Base, Inside1km, Outside1km)
+    res = await client.get(
+        "/api/v1/reports",
+        params={"latitude": base_lat, "longitude": base_lon, "radius_km": 5.0},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    titles = [r["title"] for r in res.json()["items"]]
+    assert f"Base_{run_id}" in titles
+    assert f"Inside1km_{run_id}" in titles
+    assert f"Outside1km_{run_id}" in titles
+    assert f"Outside5km_{run_id}" not in titles
+
+    # Test 4: Combined with other filters (e.g. text search)
+    res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "search": f"Inside1km_{run_id}",
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    titles = [r["title"] for r in res.json()["items"]]
+    assert titles == [f"Inside1km_{run_id}"]
+
+    # Test 5: Verify request without geographic parameters retains existing
+    # search behavior
+    res = await client.get(
+        "/api/v1/reports", params={"search": f"Outside5km_{run_id}"}, headers=headers
+    )
+    assert res.status_code == 200
+    titles = [r["title"] for r in res.json()["items"]]
+    assert f"Outside5km_{run_id}" in titles
+
+    # Note: Boundary inclusion (exactly on radius) is inherently handled by
+    # PostGIS ST_DWithin (use_spheroid=True) being inclusive.
+    # Radius 0.0 covers this boundary edge case perfectly.

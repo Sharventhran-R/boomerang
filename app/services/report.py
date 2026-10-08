@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Report, ReportCategory, ReportImage, ReportStatus, ReportType
+from app.schemas.geo import GeoSearchParams
 from app.schemas.report import CreateReportRequest, UpdateReportRequest
 from app.services.storage import delete_image_from_s3, upload_image_to_s3
 
@@ -113,6 +114,7 @@ async def list_reports(
     page: int = 1,
     page_size: int = 20,
     sort: str = "newest",
+    geo: GeoSearchParams | None = None,
 ) -> dict[str, Any]:
     query = select(
         Report,
@@ -137,6 +139,16 @@ async def list_reports(
                 Report.description.ilike(search_term),
             )
         )
+
+    if (
+        geo
+        and geo.latitude is not None
+        and geo.longitude is not None
+        and geo.radius_km is not None
+    ):
+        radius_meters = float(geo.radius_km) * 1000.0
+        search_point = WKTElement(f"POINT({geo.longitude} {geo.latitude})", srid=4326)
+        filters.append(func.ST_DWithin(Report.location, search_point, radius_meters))
 
     if filters:
         query = query.where(*filters)

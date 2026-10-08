@@ -79,6 +79,7 @@ async def list_reports(
         page=page,
         page_size=page_size,
         sort=sort,
+        geo=geo,
     )
 
 
