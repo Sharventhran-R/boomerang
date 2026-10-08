@@ -63,4 +63,12 @@
   - Added real MinIO integration tests (`test_real_minio_image_upload`, `test_real_minio_image_delete`) that interact directly with the API and S3 bucket without mocking.
   - Reconfigured tests to check MinIO availability using `head_bucket` on the target bucket, properly failing on authentication/license errors but skipping gracefully only on genuine network unreachability.
   - Result: 17 integration tests passing. No skipped MinIO tests.
-  - Next authorized phase: No further phases. Do NOT implement Phase 5+ functionality.
+- 2026-10-08: Completed Phase 5.1 (Geospatial Query Foundation).
+  - Implemented `GeoSearchParams` Pydantic model for geospatial validation (latitude, longitude, radius_km).
+  - Configured radius bounds (0.0 to 5.0 km) and restricted precision to 1 decimal place.
+  - Implemented cross-field consistency validation (all 3 must be provided together).
+  - Integrated `get_geo_params` FastAPI dependency into `list_reports` endpoint.
+  - Added `sort=distance` parameter validation ensuring it is only used with geographic coordinates.
+  - Required robust FastAPI integration testing bypassing default Pydantic 500 errors when instantiated directly as dependency variables.
+  - Re-verified database consistency ensuring `location` is strictly validated.
+  - Next authorized phase: Phase 5.2. Do NOT implement Phase 6+ functionality.

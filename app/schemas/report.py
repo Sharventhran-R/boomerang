@@ -34,6 +34,21 @@ class UpdateReportRequest(BaseModel):
     reward_amount: Decimal | None = Field(default=None, ge=Decimal("0.0"))
     status: ReportStatus | None = None
 
+    @model_validator(mode="after")
+    def validate_location(self) -> "UpdateReportRequest":
+        lat_provided = "latitude" in self.model_fields_set
+        lon_provided = "longitude" in self.model_fields_set
+
+        if lat_provided and self.latitude is None:
+            raise ValueError("latitude cannot be null")
+        if lon_provided and self.longitude is None:
+            raise ValueError("longitude cannot be null")
+
+        if lat_provided != lon_provided:
+            raise ValueError("latitude and longitude must be updated together")
+
+        return self
+
 
 class ReportImageResponse(BaseModel):
     id: uuid.UUID

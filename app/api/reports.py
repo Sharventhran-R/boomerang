@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models import ReportCategory, ReportStatus, ReportType, User
+from app.schemas.geo import GeoSearchParams, get_geo_params
 from app.schemas.report import (
     CreateReportRequest,
     ReportImageResponse,
@@ -53,13 +54,22 @@ async def list_reports(
     search: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    sort: str = Query("newest", pattern="^(newest|oldest)$"),
+    sort: str = Query("newest", pattern="^(newest|oldest|distance)$"),
+    geo: GeoSearchParams = Depends(get_geo_params),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     List reports with pagination and filtering.
     """
+    if sort == "distance" and (
+        geo.latitude is None or geo.longitude is None or geo.radius_km is None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="sort=distance requires latitude, longitude, and radius_km",
+        )
+
     return await report_service.list_reports(
         db=db,
         type=type,
