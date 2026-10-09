@@ -33,7 +33,7 @@ async def init_bucket() -> None:
 async def upload_image_to_s3(report_id: uuid.UUID, file: UploadFile) -> tuple[str, int]:
     if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid image type. Only JPEG, PNG, and WebP are allowed.",
         )
 
@@ -42,7 +42,7 @@ async def upload_image_to_s3(report_id: uuid.UUID, file: UploadFile) -> tuple[st
 
     if file_size > 5 * 1024 * 1024:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="File size exceeds 5 MB limit.",
         )
 

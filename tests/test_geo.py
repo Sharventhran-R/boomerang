@@ -37,6 +37,12 @@ def test_geo_search_params_validation() -> None:
         get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("10.0"))
 
     # Radius decimal places
+    # Valid trailing zeros and valid normal precision
+    get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("1.10"))
+    get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("1.100"))
+    get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("2.5"))
+    get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("0.0"))
+
     with pytest.raises(HTTPException) as exc:
         get_geo_params(latitude=90.0, longitude=180.0, radius_km=Decimal("0.05"))
     assert exc.value.status_code == 422

@@ -358,3 +358,101 @@ async def test_real_minio_image_delete(
     )
     assert get_res.status_code == 200
     assert len(get_res.json()["images"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_deterministic_sorting_newest_oldest(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.db.database import AsyncSessionLocal
+    from app.db.models import Report
+
+    run_id = uuid.uuid4().hex[:6]
+
+    # Create 3 reports
+    reports = []
+    for i in range(3):
+        create_res = await client.post(
+            "/api/v1/reports",
+            headers=auth_headers,
+            json={
+                "type": "MISSING",
+                "title": f"Item {i} {run_id}",
+                "description": "desc",
+                "category": "OTHER",
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "event_time": "2023-10-01T12:00:00Z",
+            },
+        )
+        assert create_res.status_code == 201
+        reports.append(create_res.json())
+
+    # Update created_at to be exactly the same for all 3 reports
+    from datetime import UTC, datetime
+
+    identical_time = datetime.now(UTC)
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(Report)
+            .where(Report.id.in_([r["id"] for r in reports]))
+            .values(created_at=identical_time)
+        )
+        await session.commit()
+
+    # Sort 'newest' should now fallback to ID ASC
+    # We will get all 3 and verify their order is identical to their UUID ASC sorting
+    res = await client.get(
+        f"/api/v1/reports?sort=newest&search={run_id}", headers=auth_headers
+    )
+    assert res.status_code == 200
+    items_newest = res.json()["items"]
+    # Only consider the 3 we just created
+    our_items_newest = [
+        item for item in items_newest if item["id"] in [r["id"] for r in reports]
+    ]
+    assert len(our_items_newest) == 3
+
+    # IDs should be strictly ascending
+    ids_newest = [item["id"] for item in our_items_newest]
+    assert ids_newest == sorted(ids_newest)
+
+    # Sort 'oldest' should also fallback to ID ASC
+    res = await client.get(
+        f"/api/v1/reports?sort=oldest&search={run_id}", headers=auth_headers
+    )
+    assert res.status_code == 200
+    items_oldest = res.json()["items"]
+    our_items_oldest = [
+        item for item in items_oldest if item["id"] in [r["id"] for r in reports]
+    ]
+    assert len(our_items_oldest) == 3
+
+    ids_oldest = [item["id"] for item in our_items_oldest]
+    assert ids_oldest == sorted(ids_oldest)
+
+    # Test pagination explicitly doesn't duplicate or drop due to stable sort
+    res_p1 = await client.get(
+        f"/api/v1/reports?sort=newest&search={run_id}&page=1&page_size=2",
+        headers=auth_headers,
+    )
+    res_p2 = await client.get(
+        f"/api/v1/reports?sort=newest&search={run_id}&page=2&page_size=2",
+        headers=auth_headers,
+    )
+    assert res_p1.status_code == 200
+    assert res_p2.status_code == 200
+
+    items_p1 = res_p1.json()["items"]
+    items_p2 = res_p2.json()["items"]
+
+    # Since there are potentially other reports in the DB from other tests,
+    # we just need to ensure the intersection of our 3 items is correctly partitioned.
+    all_paginated_ids = [i["id"] for i in items_p1] + [i["id"] for i in items_p2]
+    # The order of all paginated items should be stable, no duplicates
+    assert len(all_paginated_ids) == len(set(all_paginated_ids))

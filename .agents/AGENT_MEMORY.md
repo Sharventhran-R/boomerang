@@ -92,3 +92,14 @@
   - Structured ordering natively interacting securely within `.limit(page_size)` maintaining execution efficiency completely avoiding python level data ingestion sorting overheads securely via PostGIS `ST_Distance`.
   - Added deterministic tests asserting sorting boundary logic precisely (testing output order correctly mapping exactly distance calculations while asserting 5km out of bounds distances are excluded correctly).
   - Ensured original sort options (`newest`/`oldest`) run identically properly isolating logic paths securely.
+- 2026-10-09: Completed Phase 5.5 (Final Testing & Verification).
+  - Inspected the current state (git status, git diff) ensuring clean repository and adherence to guardrails.
+  - Successfully ran automated quality checks: pytest (22 tests passed), Ruff linting/formatting, Mypy typecheck, and docker-compose configurations.
+  - Verified StarletteDeprecationWarning from Pydantic `HTTP_422_UNPROCESSABLE_ENTITY` and modernized `app/api/reports.py`, `app/schemas/geo.py`, and `app/services/storage.py` to use `HTTP_422_UNPROCESSABLE_CONTENT`, resulting in a completely silent, warning-free test output.
+  - Asserted that distance filters, PostGIS indexing `ST_DWithin`, and determinism `ST_Distance` order functionality behaves correctly via robust backend test suites covering inclusive boundary checks and missing parameter validations.
+  - Confirmed Phase 5 is stable, properly bounded to geospatial backend integration, without spilling into Phase 6 implementations.
+  - Phase 5.5 Follow-up: Addressed Code Review findings F-2 and F-3.
+    - F-2: Fixed non-deterministic pagination for `newest`/`oldest` sort modes by adding `Report.id` as a secondary ASC sort key. Added `test_deterministic_sorting_newest_oldest` test isolating items using a UUID search tag and explicitly sharing a `created_at` timestamp.
+    - F-3: Fixed decimal precision check rejecting equivalent float-scaled values (e.g. `1.10`) by adding `.normalize()` prior to evaluating exponent scale. Added trailing zero tests ensuring 0-5.0km scaling holds true under varying precisions.
+    - F-1, F-4, F-5 consciously deferred as non-blocking issues for Phase 5 completion.
+  - Next authorized phase: Phase 6 — Flutter Mobile + Web.

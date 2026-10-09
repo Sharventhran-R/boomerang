@@ -127,7 +127,7 @@ async def update_report(
         }
         if report_in.status not in valid_transitions.get(report.status, set()):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Cannot transition from {report.status} to {report_in.status}",
             )
 
@@ -161,7 +161,7 @@ async def upload_image(
         return await report_service.upload_report_image(db, report, file)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
         )
 
 

@@ -162,9 +162,9 @@ async def list_reports(
             asc(distance_col), desc(Report.created_at), asc(Report.id)
         )
     elif sort == "newest":
-        query = query.order_by(desc(Report.created_at))
+        query = query.order_by(desc(Report.created_at), asc(Report.id))
     else:
-        query = query.order_by(asc(Report.created_at))
+        query = query.order_by(asc(Report.created_at), asc(Report.id))
 
     query = query.offset((page - 1) * page_size).limit(page_size)
 

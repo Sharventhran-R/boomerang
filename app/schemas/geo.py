@@ -29,15 +29,15 @@ def get_geo_params(
 
     if provided > 0 and provided < 3:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="latitude, longitude, and radius_km must be provided together",
         )
 
     if params.radius_km is not None:
-        exponent = params.radius_km.as_tuple().exponent
+        exponent = params.radius_km.normalize().as_tuple().exponent
         if isinstance(exponent, int) and abs(exponent) > 1:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="radius_km must have at most 1 decimal place",
             )
 
