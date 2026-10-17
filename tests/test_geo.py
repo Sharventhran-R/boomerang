@@ -405,3 +405,147 @@ async def test_distance_sorting(client: AsyncClient) -> None:
     assert len(items) == 2
     assert items[0]["title"] == f"A_{run_id}"
     assert items[1]["title"] == f"B2_{run_id}"
+
+
+@pytest.mark.asyncio
+async def test_spatial_filtering_before_pagination_and_radius_boundaries(
+    client: AsyncClient,
+) -> None:
+    """Verify that spatial filtering occurs in PostGIS before pagination (Case 13)
+
+    and that reports at 0.5 km and 4.9 km are included while reports beyond
+    5 km are excluded.
+    """
+    import uuid
+
+    user_id = uuid.uuid4().hex[:6]
+    test_email = f"geo_pagi_{user_id}@example.com"
+
+    res = await client.post(
+        "/api/v1/auth/register",
+        json={"name": "Geo Pagination", "email": test_email, "password": "password123"},
+    )
+    res = await client.post(
+        "/api/v1/auth/login",
+        json={"email": test_email, "password": "password123"},
+    )
+    token = res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    base_lat, base_lon = 10.0, 10.0
+    run_id = uuid.uuid4().hex[:6]
+
+    # Create 3 reports INSIDE 5.0 km radius:
+    # 1. 0.0 km
+    # 2. ~0.5 km away (lat offset 0.0045 => ~0.50 km)
+    # 3. ~4.9 km away (lat offset 0.0440 => ~4.89 km)
+    # And 3 reports OUTSIDE 5.0 km radius:
+    # 4. ~5.5 km away (lat offset 0.0500 => ~5.56 km)
+    # 5. ~6.1 km away (lat offset 0.0550 => ~6.12 km)
+    # 6. ~10.0 km away (lat offset 0.0900 => ~10.01 km)
+    inside_reports = [
+        {"title": f"Inside_0km_{run_id}", "lat": 10.0, "lon": 10.0},
+        {"title": f"Inside_0.5km_{run_id}", "lat": 10.0045, "lon": 10.0},
+        {"title": f"Inside_4.9km_{run_id}", "lat": 10.0440, "lon": 10.0},
+    ]
+    outside_reports = [
+        {"title": f"Outside_5.5km_{run_id}", "lat": 10.0500, "lon": 10.0},
+        {"title": f"Outside_6.1km_{run_id}", "lat": 10.0550, "lon": 10.0},
+        {"title": f"Outside_10km_{run_id}", "lat": 10.0900, "lon": 10.0},
+    ]
+
+    for r in inside_reports + outside_reports:
+        create_res = await client.post(
+            "/api/v1/reports",
+            json={
+                "type": "MISSING",
+                "title": r["title"],
+                "description": "Spatial pagination test report",
+                "category": "OTHER",
+                "latitude": r["lat"],
+                "longitude": r["lon"],
+                "event_time": datetime.now(UTC).isoformat(),
+            },
+            headers=headers,
+        )
+        assert create_res.status_code == 201
+
+    # Query with radius_km=5.0 and page_size=2
+    # Spatial filter must restrict the total matching to 3 (only the inside reports),
+    # meaning total=3, NOT 6.
+    page1_res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "search": run_id,
+            "page": 1,
+            "page_size": 2,
+            "sort": "distance",
+        },
+        headers=headers,
+    )
+    assert page1_res.status_code == 200
+    page1_data = page1_res.json()
+    assert page1_data["total"] == 3
+    assert len(page1_data["items"]) == 2
+    page1_titles = [item["title"] for item in page1_data["items"]]
+    assert f"Inside_0km_{run_id}" in page1_titles
+    assert f"Inside_0.5km_{run_id}" in page1_titles
+
+    # Page 2: must contain the remaining 1 inside report
+    page2_res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "search": run_id,
+            "page": 2,
+            "page_size": 2,
+            "sort": "distance",
+        },
+        headers=headers,
+    )
+    assert page2_res.status_code == 200
+    page2_data = page2_res.json()
+    assert page2_data["total"] == 3
+    assert len(page2_data["items"]) == 1
+    assert page2_data["items"][0]["title"] == f"Inside_4.9km_{run_id}"
+    assert page2_data["items"][0]["distance_km"] <= 5.0
+
+    # Page 3: must be empty, total remains 3
+    page3_res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": base_lat,
+            "longitude": base_lon,
+            "radius_km": 5.0,
+            "search": run_id,
+            "page": 3,
+            "page_size": 2,
+            "sort": "distance",
+        },
+        headers=headers,
+    )
+    assert page3_res.status_code == 200
+    page3_data = page3_res.json()
+    assert page3_data["total"] == 3
+    assert len(page3_data["items"]) == 0
+
+    # Query in remote area with no reports ->
+    # returns genuine empty state (total=0, items=[])
+    empty_res = await client.get(
+        "/api/v1/reports",
+        params={
+            "latitude": -85.0,
+            "longitude": 0.0,
+            "radius_km": 5.0,
+        },
+        headers=headers,
+    )
+    assert empty_res.status_code == 200
+    empty_data = empty_res.json()
+    assert empty_data["total"] == 0
+    assert empty_data["items"] == []

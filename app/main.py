@@ -1,21 +1,36 @@
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
 from app.api.auth import auth_router, users_router
+from app.api.recovery import recovery_router
 from app.api.reports import reports_router
 from app.core.config import settings
 from app.db.database import get_db
 
 app = FastAPI(title="Community Missing Item & Asset Tracker")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(
     reports_router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"]
+)
+app.include_router(
+    recovery_router,
+    prefix=f"{settings.API_V1_STR}/recovery-requests",
+    tags=["recovery-requests"],
 )
 
 

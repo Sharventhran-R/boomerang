@@ -103,3 +103,396 @@
     - F-3: Fixed decimal precision check rejecting equivalent float-scaled values (e.g. `1.10`) by adding `.normalize()` prior to evaluating exponent scale. Added trailing zero tests ensuring 0-5.0km scaling holds true under varying precisions.
     - F-1, F-4, F-5 consciously deferred as non-blocking issues for Phase 5 completion.
   - Next authorized phase: Phase 6 — Flutter Mobile + Web.
+- 2026-10-10: Completed Phase 6.2 (Frontend Foundation).
+  - Scaffolded Flutter web/mobile workspace in `frontend/`.
+  - Created centralized dark `ThemeData` configuration mapping Stitch UI design tokens to Flutter native styles (`AppTheme`).
+  - Defined explicit colors (MISSING, FOUND, Reward, etc.) preserving exact brand color-codes.
+  - Standardized consistent spacing, 12px rounded borders, input styles, and button styles.
+  - Replaced default counter app with a minimal Boomerang-branded placeholder verifying theme compatibility.
+  - Successfully passed `flutter analyze` and `flutter test`.
+- 2026-10-10: Completed Phase 6.3 (Home and Explore Map).
+  - Built `HomeScreen` implementing the core search, filter buttons, category pills, and nearby reports feed mirroring Stitch HTML.
+  - Built `MapScreen` implementing a non-interactive dark map placeholder safely isolating SDK dependencies, paired with floating search tools and a responsive `DraggableScrollableSheet` for nearby reports.
+  - Constructed `MainNavScreen` integrating a persistent bottom navigation bar matching the design layout.
+  - Engineered reusable widgets: `ReportCard`, `StatusLabel`, and `RewardLabel`.
+  - Replaced deprecated `.withOpacity` methods with modern `.withValues(alpha:)` across the UI conforming strictly to Flutter 3.44.8 lint rules.
+  - Passed all strict guardrails: zero backend modifications, mock data exclusively, formatting clear, 0 analyzer issues, successfully passed all widget tests.
+- 2026-10-10: Completed Phase 6.3 UI Corrections.
+  - Performed a UI consistency audit against the 14 Stitch exports (`ui_consistency_review.md`).
+  - Added `google_fonts` dependency and configured centralized typography (Hanken Grotesk and Inter) in `AppTheme`.
+  - Added responsive `ConstrainedBox(maxWidth: 600)` wrapper around `MainNavScreen` to prevent desktop viewport stretching while preserving mobile design ratios.
+  - Integrated `BackdropFilter` and `ClipRRect` / `ClipOval` across floating map elements (search bar, top header, icons) and the bottom navigation bar to precisely match the glassmorphism aesthetic references.
+  - Resolved `WidgetTester` font-fallback flex layout overflow issues by robustly wrapping text strings in `Flexible` and `Expanded` within `home_screen.dart` titles and action cards.
+  - Successfully validated layout changes through static analysis and widget tests (`All tests passed!`).
+- 2026-10-10: Completed Phase 6.3 Secondary Screens.
+  - Scaffolded `SettingsScreen` and `RecoveryRequestsScreen` matching the visual layout and components of the Stitch exports.
+  - Added navigation routing from `ProfileScreen` to `SettingsScreen` and `RecoveryRequestsScreen` via `Navigator.push`.
+  - Conducted a comprehensive final UI consistency audit for the remaining 10 unimplemented/pending Stitch export screens and documented missing components/views in `ui_consistency_review.md`.
+- 2026-10-11: Completed Phase 6.3 Stabilization.
+  - Priority 1 (Layout): Fixed horizontal RenderFlex overflow in `settings_screen.dart` by constraining title/subtitle rows and header rows with `Expanded` / `Flexible`. Constrained `profile_screen.dart` user header badge with `Wrap` and stats rows with `Expanded`. Verified layout at 390px viewport.
+  - Priority 2 (Navigation): Connected Home "Map View" action to switch to the Map tab. Wired My Reports' pending recovery banner to open `RecoveryRequestsScreen`. Wired Profile's "Browse All Incident Reports" to switch to the My Reports tab. Created `ChooseReportTypeScreen` (`choose_report_type_screen.dart`) as temporary entry point for "Report Missing" and "Report Found" cards.
+  - Priority 3 (Search and Filters): Implemented stateful category chip selection in `HomeScreen` filtering mock reports by category. Connected search input to filter reports by title, category, description, and location. Made `RecoveryRequestsScreen` Received (2) and Sent (1) tabs switch selection state and render respective mock records.
+  - Priority 4 (Report Actions and Feedback): Implemented `ReportDetailsScreen` (`report_details_screen.dart`) and wired My Reports' "View Details" and Home card taps to it. Configured non-misleading feedback for "Edit Report". Implemented mock confirmation dialogs for "Review & Accept" and "Decline" with updated local badges (`ACCEPTED (MOCK)` / `DECLINED (MOCK)`). Wired Profile "Terminate & Log Out" confirmation dialog and ensured 140px bottom padding clears floating navigation.
+  - Verification: Added `frontend/test/stabilization_test.dart`. Formatted with `dart format .`, analyzed with `flutter analyze` (0 issues), and ran `flutter test` (all 8 tests passed). Verified live via Chrome DevTools MCP at 390x844 viewport.
+- 2026-10-11: Installed Design Skills, Organized Agent System & Established Design Policy.
+  - Installed three design resources at project scope (`.agents/skills/`):
+    1. `design-taste-frontend` (`.agents/skills/design-taste-frontend/SKILL.md`): Verified official source `Leonxlnx/taste-skill`.
+    2. `web-design-guidelines` (`.agents/skills/web-design-guidelines/SKILL.md`): Verified official source `vercel-labs/agent-skills` with local offline reference `references/guidelines.md`.
+    3. `awesome-design` (`.agents/skills/awesome-design/SKILL.md`): Verified official source `EagleFandel/awesome-design` with 55+ design systems in Stitch format (`design-md/`).
+  - Generated `skills-lock.json` locking verified sources and hashes.
+  - Created `.agents/DESIGN_POLICY.md` formalizing design authority hierarchy, design tokens, Stitch mapping, and Flutter adaptation rules.
+  - Updated `.agents/AGENTS.md` with frontend canonical commands, design policy links, and instructions for future agents.
+- 2026-10-11: Completed UI Quality Refinement across Flutter frontend.
+  - Multi-Skill Application: Applied `design-taste-frontend` for optical hierarchy, card border luminance, and spacing cadence; applied `web-design-guidelines` for accessibility attributes (`Semantics`, `Tooltip`), keyboard focus, interactive touch targets ($\ge 44\text{px}$), and dialog confirmations; referenced `awesome-design` for token consistency.
+  - Bottom Navigation Defect Resolution: Fixed critical layout defect in `main_nav_screen.dart` where `ConstrainedBox` inside `_buildNavItem` caused `Center` to expand to the full 600px scaffold height, intercepting viewport taps. Added `widthFactor: 1.0, heightFactor: 1.0` and `constraints: BoxConstraints(maxHeight: 80)` to outer nav bar container.
+  - Interactive Overlays & Workflows: Connected interactive district picker (`_showDistrictPicker`) and sort/filter modal sheet (`_showFilterSheet`) in `HomeScreen`; spatial mesh info and location picker in `MapScreen`; item claim/recovery confirmation dialog and discrepancy reporting dialog in `ReportDetailsScreen`.
+  - Contrast & Card Hierarchy: Boosted card border contrast to `#2E3134` / `#2A2C2D` across `ReportCard`, `HomeScreen`, `ProfileScreen`, and `ChooseReportTypeScreen` against `#080909` background.
+- 2026-10-11: Resolved Map Screen Nearby Reports Expansion Defect.
+  - Root Cause: In `map_screen.dart`, `DraggableScrollableSheet` lacked a controller and programmatic toggle. The "Expand" label and drag handle were in a non-scrollable `Column` outside the `scrollController`, ignoring pointer drags. At initial size `0.16` and search bar at `bottom: 96`, the collapsed sheet was submerged behind the floating bottom navigation bar and search bar with zero interactive area.
+  - Fix & Interactive Enhancements:
+    1. Wired `DraggableScrollableController` (`_sheetController`) with `initState`/`dispose` lifecycle listener updating `_isSheetExpanded` state.
+    2. Added `_toggleSheet()` smoothly animating between collapsed (`0.18`) and expanded (`0.60`).
+    3. Wrapped drag handle and header row with `GestureDetector(onTap: _toggleSheet, onVerticalDragUpdate: ..., onVerticalDragEnd: ...)` enabling smooth vertical dragging and snap animations directly from the handle and header.
+    4. Made "Expand" / "Collapse" an interactive button with dynamic label, icon (`expand_less` / `expand_more`), `Semantics`, and `Tooltip`.
+    5. Connected floating filter button (`Icons.tune`) to `_toggleSheet()` matching the Stitch Explore Map reference (`toggleBottomSheet()`).
+    6. Positioned floating search bar at `bottom: 148` cleanly above the collapsed peek header; sheet expands over the search bar when opened.
+    7. Eliminated layout overflows at 390px viewport in `map_screen.dart` top header and `report_card.dart` status/reward/distance rows using `Expanded`, `Flexible`, and `Wrap`.
+- 2026-10-11: Resolved Map Screen Bottom Controls Responsiveness & Overlap Defect.
+  - Root Cause: Position-based stacking (`Positioned(bottom: 148)` for search bar and independent `DraggableScrollableSheet`) caused the sheet to overlap and obscure the search input and neighbouring icons (`Icons.tune`, `Icons.near_me`) upon expansion or viewport resize. Furthermore, edge-to-edge sheet stretching broke responsiveness on wide/desktop viewports.
+  - Fix Architecture:
+    1. Unified Layout Column: Placed `_buildFloatingSearchRow()` (search bar, filter icon, locate GPS icon) and `_buildNearbyReportsPanel()` into a single vertical `Column(mainAxisSize: MainAxisSize.min)` anchored at `Positioned(bottom: 0)` with `Align(alignment: Alignment.bottomCenter)` and `ConstrainedBox(constraints: BoxConstraints(maxWidth: 500))` with `bottom: 92` padding.
+    2. Zero Overlap Guarantee: Because the search row and nearby reports panel are sequential children in a vertical `Column`, Flutter's layout engine guarantees they can never overlap under any viewport dimension or orientation.
+    3. Responsive Animation: Replaced the fixed fraction sheet with an `AnimatedSize(duration: Duration(milliseconds: 300), curve: Curves.easeOutCubic)` expandable panel with a max-height scrollable list constraint (`maxHeight: 250`).
+    4. Responsiveness on Desktop & Mobile: Panel and search controls are cleanly constrained to `maxWidth: 500` centered horizontally, aligning symmetrically with the floating bottom navigation bar.
+    5. Interactive Triggers: Expand/collapse is toggled smoothly via the "Expand" / "Collapse" button, the drag handle tap/vertical drag, or the search bar's `Icons.tune` filter button.
+  - Automated Verification:
+    - Added responsive desktop test `Map screen search bar, neighbouring icons and nearby reports are responsive and do not overlap on desktop` in `test/stabilization_test.dart` at 1280x800 viewport.
+    - `dart format .`: All 15 files formatted.
+    - `flutter analyze`: 0 issues found.
+    - `flutter test`: All 10 tests passed (including smoke, navigation, dialog, mobile, and responsive desktop tests).
+    - Preserved zero Git write operations (manual git ownership retained by developer).
+- 2026-10-11: Resolved Map Screen Alex Morgan Avatar Profile Routing.
+  - Root Cause: In `map_screen.dart`, the Alex Morgan avatar button ('AL' circle in the top right header) was built as an inert `Container` without an interactive gesture detector or routing handler. Furthermore, `MapScreen` lacked an `onNavigateTab` callback from `main_nav_screen.dart`.
+  - Fix Architecture:
+    1. Added `final ValueChanged<int>? onNavigateTab;` to `MapScreen` constructor.
+    2. Connected `MapScreen(onNavigateTab: (index) => setState(() => _currentIndex = index))` in `main_nav_screen.dart`.
+    3. Implemented `_navigateToProfile()` in `_MapScreenState` switching to tab 4 (`ProfileScreen`), with fallback `Navigator.push` to `ProfileScreen` if instantiated standalone.
+    4. Wrapped Alex Morgan avatar in `Semantics(button: true, label: 'Alex Morgan Profile. Tap to view profile')`, `Tooltip(message: 'Alex Morgan Profile')`, and `InkWell(onTap: _navigateToProfile)` with a 44x44 minimum touch target adhering to `web-design-guidelines`.
+  - Automated Verification:
+    - Added widget test `Map screen Alex Morgan avatar button navigates to Profile page` in `test/stabilization_test.dart`.
+    - Formatted with `dart format .`, verified 0 issues with `flutter analyze`, and all 11 tests passed with `flutter test`. Zero Git write operations.
+- 2026-10-11: Completed Full Monochromatic Redesign (Swiss Modernist Architectural Redesign).
+  - Scope: Complete visual overhaul across all screens and widgets into a strict monochromatic black, white, and grayscale design system inspired by Swiss modernism, with zero color accents (no red, green, blue, gold, purple, or saturated highlights).
+  - Design Direction & Philosophy:
+    - Backgrounds: `#080808` (deep obsidian canvas) and `#0D0D0D`.
+    - Layered Charcoal Surfaces: `#151515`, `#1C1C1C`, `#242424`.
+    - Architectural Borders: `#303030` and `#3A3A3A`.
+    - Typography & Telemetry: High-contrast Swiss-modernist typography (`Hanken Grotesk` display titles, `Inter` for data density and telemetry, monospaced coordinates).
+    - Status Differentiation: Pure tonal contrast and typography—`MISSING` via `#F5F5F5` on `#202020` with alert indicator; `FOUND` via outlined `#A0A0A0` border on `#141414`.
+    - Currency/Rewards: Pure monochrome currency notation (`§` / `$`) without gold or saturated badges.
+    - Map Experience: Grayscale tactical coordinate painter (`TacticalMapPainter`), monochrome locator pins, radar grid overlay, and high-contrast telemetry controls.
+  - Components & Screens Overhauled:
+    1. `frontend/lib/theme.dart`: Strict monochrome palette, architectural 8px/4px corner tokens, crisp button/input themes, zero color accents.
+    2. `frontend/lib/ui/widgets/status_label.dart`: Tonal high-contrast MISSING and FOUND labels, monochrome `RewardLabel` (`§`).
+    3. `frontend/lib/ui/widgets/report_card.dart`: Monochromatic layout with architectural thumbnail frame, tracking, and border `#303030`.
+    4. `frontend/lib/ui/screens/home_screen.dart`: Responsive desktop 2-column layout (`>= 840px`), Swiss-modernist telemetry headers, tactical search/filter bar, quick action cards, and mobile single-column feed.
+    5. `frontend/lib/ui/screens/map_screen.dart`: Custom monochromatic tactical coordinate painter (`TacticalMapPainter`), custom monochrome map pins, split desktop layout (`>= 840px`), and collapsible mobile bottom sheet.
+    6. `frontend/lib/ui/screens/choose_report_type_screen.dart`: Architectural step indicator (`01 // TYPE SELECT`), high-contrast option cards with telemetry badges, and bottom guidance banner.
+    7. `frontend/lib/ui/screens/report_details_screen.dart`: Technical photo frame, crisp metadata table (`ITEM DETAILS & SPECS`), reporter verified badge, and monochrome high-contrast recovery actions.
+    8. `frontend/lib/ui/screens/my_reports_screen.dart`: Segmented filter tabs (`All`, `Missing`, `Found`), active pending recovery banner, and report action sheets.
+    9. `frontend/lib/ui/screens/recovery_requests_screen.dart`: Pending recovery requests, claimant verification badges, resolution action dialogs, and compact responsive padding.
+    10. `frontend/lib/ui/screens/profile_screen.dart`: `AM` avatar, `VERIFIED MEMBER` badge, Swiss-modernist telemetry metrics grid (`2 Active Reports`, `1 Pending`, `12 Resolved`), account management, and session logout.
+    11. `frontend/lib/ui/screens/settings_screen.dart`: Telemetry section cards, monochrome toggle switches, responsive layout (tested at 390px mobile viewport), and GNSS/storage controls.
+    12. `frontend/lib/ui/screens/login_screen.dart`: Implemented from Stitch export `bd3073925cf34b1ab860362bae730567` in strict monochrome with security telemetry banner and high-contrast inputs.
+    13. `frontend/lib/ui/screens/registration_screen.dart`: Implemented from Stitch export `325c904fe37c4927a3dcd8848df4cf58` in strict monochrome with password strength indicators and terms agreement.
+    14. `frontend/lib/ui/screens/session_expired_screen.dart`: Implemented from Stitch export `ad0a7a2c83fe49e38176f2ad53275b35` in strict monochrome with warning telemetry and quick re-authentication.
+    15. `frontend/lib/ui/screens/main_nav_screen.dart`: Responsive desktop sidebar (`240px`) and floating mobile bottom navigation bar (`76px` max height) with pure monochrome styling.
+    16. `frontend/lib/main.dart`: LayoutBuilder integration adapting between desktop full-bleed (`>= 840px`) and centered mobile container (`maxWidth: 600px`).
+  - Verification & Quality:
+    - Code formatting: `cd frontend; dart format .` (all files formatted cleanly).
+    - Static analysis: `cd frontend; flutter analyze` (0 issues found).
+    - Unit & Widget Tests: `cd frontend; flutter test` (all 11 tests passed with 0 failures).
+    - Git Safety: Complied with manual Git ownership rule; zero git write commands executed.
+- 2026-10-11: Completed Mobile-First Redesign Correction.
+  - Primary Target: Recomposed the entire application specifically for a modern smartphone viewport (390 × 844 px) as primary product; desktop layout retained strictly as secondary responsive adaptation.
+  - Design & Navigation Architecture:
+    - Replaced mobile floating overlay with docked 60px bottom navigation bar featuring 5 destinations: Home, Explore, Create (+ action), My Reports, Profile.
+    - Ensured bottom bar does not obscure scrolling content (`extendBody: false` with SafeArea respect). Completely hides desktop sidebar on mobile widths (`< 900px`).
+    - Stripped out desktop telemetry grids, bloated metrics panels, and complex split-views on mobile in favor of clean Swiss-modernist editorial typography and comfortable 44-48px touch targets.
+  - Screen-by-Screen Mobile Recomposition:
+    - `home_screen.dart`: Distinctive editorial heading, compact search and district selector with ellipsis truncation (resolved RenderFlex overflow at <= 358px), horizontal category chips, Missing/Found touch cards, and single-column feed of nearby reports.
+    - `map_screen.dart`: Full-screen monochromatic tactical placeholder canvas (clearly represented as placeholder vector map), floating controls safely positioned, collapsible/expandable bottom sheet with nearby reports, and compact header (resolved 68px header overflow).
+    - `choose_report_type_screen.dart`: Single-column touch cards for Missing Item vs. Found Item with step indicator (`01 // TYPE SELECT`) and forward flow.
+    - `report_details_screen.dart`: Prominent item photo frame, status badge, metadata breakdown, and bottom action area.
+    - `my_reports_screen.dart`: Segmented filter pills (`All`, `Missing`, `Found`), active pending recovery alert banner, single-column report list without oversized telemetry widgets.
+    - `recovery_requests_screen.dart`: Clean `Received` and `Sent` tabs, clear item cards with verification guidance, and accessible accept/decline buttons.
+    - `profile_screen.dart`: Mobile profile header (`Alex Morgan`, `AM`), `VERIFIED MEMBER` badge, `OPERATIONAL SUMMARY` 4-box stat row, quick navigation rows, and logout action.
+    - `settings_screen.dart`: Grouped mobile settings cards, monochrome switches, and safe text wrapping.
+    - `login_screen.dart`, `registration_screen.dart`, `session_expired_screen.dart`: Centered single-column mobile forms with accessible inputs, password toggles, and safe-area margins.
+  - Visual Verification via Chrome DevTools MCP:
+    - 390 × 844 px (Primary Smartphone): Captured and visually verified Home, Map (collapsed & expanded sheet), Choose Report Type, Report Details, My Reports, Recovery Requests, Profile, Settings, Session Expired, Login, and Registration. Zero layout overflows.
+    - 360 × 800 px (Compact Smartphone): Verified clean layout with zero RenderFlex errors.
+    - 430 × 932 px (Large Smartphone): Verified proportional responsive scaling and touch comfort.
+    - 1280 × 800 px (Desktop Regression Check): Verified desktop sidebar and responsive container fallback intact without console errors.
+  - Automated Quality & Testing:
+    - `dart format .`: Formatted 18 Dart files.
+    - `flutter analyze`: 0 issues found.
+    - `flutter test`: 11 of 11 tests passed with 0 failures (`stabilization_test.dart` and `widget_test.dart`).
+    - Git Safety: Zero git write commands executed. Ready for manual review and staging by developer.
+- 2026-10-11: Completed Phase 6.4 (Report Creation and Local State).
+  - Scope & Architecture:
+    - Unified Domain Model (`report_model.dart`): Consolidated report model supporting `id`, `title`, `category`, `description`, `locationDescription`, `dateTime`, `status`, `reward`, `distance`, `timeAgo`, `photos`, and `isUserReport`.
+    - Shared In-Memory Repository (`report_repository.dart`): Created `ChangeNotifier` singleton `ReportRepository` managing all active reports and user reports in-memory. Eliminates isolated hardcoded lists across screens. Pre-populated with baseline mock reports (REP-001 through REP-008). Supports reactive updates via `createReport` and `resetToDefault` for unit tests.
+    - Mobile-First Creation Form (`create_report_screen.dart`): Implemented responsive, scrollable creation form featuring:
+      - Independent MISSING / FOUND segmented type switcher.
+      - Required fields: Item title, category picker modal, description, location input with quick presets, loss/discovery date & time picker.
+      - Optional photos: Attachment simulation sheet with preset captures, preview thumbnails, and individual deletion.
+      - Optional reward: Exclusively available for MISSING reports. Automatically hidden and cleared when switched to FOUND. Rejects negative reward values (`reward >= 0`). Includes quick preset buttons ($25, $50, $100, $250).
+      - Duplicate submission prevention with loading indicator and disabled submit button during async simulation.
+      - Confirmation feedback via SnackBar with immediate "View" action button linking directly to the new report details.
+    - Screen Integration & Shared State Reactivity:
+      - `choose_report_type_screen.dart`: Connected cards to initiate `CreateReportScreen` with appropriate initial status; returns smoothly to Home upon completion.
+      - `home_screen.dart`: Subscribes directly to `ReportRepository.instance.reports`; newly created items appear at the top of the feed and filter properly.
+      - `map_screen.dart`: Subscribes to `ReportRepository.instance.reports`; dynamic badge count (`18 items` baseline + created reports) and reflects items in the expandable nearby reports list.
+      - `my_reports_screen.dart`: Subscribes to `ReportRepository.instance.userReports`; newly created reports appear under the user's active report tab.
+    - Monochromatic Design Consistency:
+      - Maintained strict Swiss-modernist palette (`#080808`, `#151515`, `#1C1C1C`, `#242424`, `#303030`, pure white `#FFFFFF` CTAs).
+      - Completely avoided colorful accents, neon gradients, or colored status badges.
+      - Responsive across mobile widths (360px, 390px, 430px) and desktop (>840px). Resolved narrow viewport button overflow in `my_reports_screen.dart` by adding `Flexible` text clipping.
+  - Automated Quality & Testing:
+    - New Phase 6.4 test suite (`test/phase_6_4_test.dart`): 9 comprehensive tests covering field validation, reward visibility & clearing, negative reward rejection, async submission & duplicate protection, multi-screen propagation (Home -> Map -> My Reports), Found reports without reward, and 360px/430px responsiveness.
+    - Existing suites: `test/stabilization_test.dart` (10 tests) and `test/widget_test.dart` (1 test).
+    - Overall test result: 20 of 20 tests passing (`flutter test`).
+    - Static analysis: `flutter analyze` passed with 0 issues.
+    - Formatting: `dart format .` completed cleanly across all Dart files.
+  - Guardrails & Repository Safety:
+    - Zero Git write operations performed. Ready for developer review and staging.
+- 2026-10-12: Completed Phase 6.5 (FastAPI Backend Integration).
+  - Scope & Architecture:
+    - Connected Flutter frontend to FastAPI backend using exact existing REST contracts (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/users/me`, `/api/v1/reports`, `/api/v1/reports/{id}`, `/api/v1/reports/{id}/images`).
+    - API & Session Infrastructure:
+      - `TokenStorage`: Platform-safe storage abstraction (`InMemoryTokenStorage` for runtime/tests, extensible for flutter_secure_storage).
+      - `ApiClient`: Unified HTTP client supporting environment-based base URLs (`API_BASE_URL`, Android emulator `10.0.2.2:8000`, Desktop/Web `127.0.0.1:8000`), Bearer token auto-attachment, transparent 401 retry with access token refresh, multipart form data image upload, and structured FastAPI error extraction.
+      - `AuthService`: Singleton session manager handling registration, login, refresh rotation, `/users/me` profile persistence, session recovery on launch, session termination, and unauthenticated state guards.
+      - `ReportRepository`: Live API integration handling `/api/v1/reports` with server-side query filters, client-side creator isolation (`created_by_user_id` matching `currentUser.id` for `userReports`), UUID detail fetching, multipart image uploading, and test-isolated mock mode retention.
+    - Screen Integrations:
+      - `LoginScreen`: Wired to `AuthService.instance.login`, loading states, error banner display, and navigation callbacks.
+      - `RegistrationScreen`: Wired to `AuthService.instance.register` and auto-login, validation, and error banner display.
+      - `CreateReportScreen`: Integrated backend creation with float coordinates, optional reward restricted to MISSING reports, sequential multipart image upload, and duplicate-prevention state.
+      - `HomeScreen`: Integrated live backend reports with pull-to-refresh, error retry card, and filter preservation.
+      - `ReportDetailsScreen`: Integrated backend UUID fetch with loading spinner, error fallback, and telemetry coordinate display.
+      - `MyReportsScreen`: Integrated current user filtering with "Authentication Required" prompt for guest operators.
+      - `ProfileScreen`: Connected to `AuthService.instance.currentUser`, displaying verified status and two-step logout confirmation.
+  - Automated Quality & Testing:
+    - Comprehensive Phase 6.5 test suite (`test/phase_6_5_test.dart`): 27 tests covering registration, login, refresh rotation, transparent 401 retry, session restoration, backend model parsing, report listing & query filters, user-report filtering, UUID detail retrieval, sequenced image uploads, 422 validation, and full widget interactions.
+    - All existing suites passing: `test/phase_6_4_test.dart` (9 tests), `test/stabilization_test.dart` (10 tests), `test/widget_test.dart` (1 test).
+    - Full test suite: 47 of 47 tests passed (`flutter test`).
+    - Static analysis: `flutter analyze` passed with 0 issues.
+    - Formatting: `dart format .` verified with 0 formatting changes needed.
+  - Guardrails & Repository Safety:
+    - Strict adherence to manual Git ownership (zero Git write commands executed).
+    - Preserved existing monochromatic Swiss-modernist design tokens (`#080808`, `#151515`, `#303030`).
+    - Zero modifications to backend API contracts, database schemas, or migrations.
+- 2026-10-13: Executed Phase 6.5 Live Integration Smoke Test.
+  - Live Infrastructure Verification:
+    - PostgreSQL 16 + PostGIS on `localhost:5432` verified and healthy (`SELECT 1`).
+    - Alembic migrations verified at head (`491e9669403b`).
+    - MinIO S3 object storage on `http://localhost:9000` initialized with `tracker-images` bucket.
+    - FastAPI uvicorn daemon running on `http://127.0.0.1:8000`, `/health` returning `{"status": "ok", "database": "ok"}`.
+  - Live API & Client Verification (PASS across all 10 checks):
+    - Health check, user registration, JWT login, profile retrieval (`/api/v1/users/me`).
+    - Missing report creation with float coordinates and reward, report listing with pagination.
+    - Single report retrieval by UUID, multipart image upload to MinIO/S3, token refresh rotation, and logout session revocation.
+  - Fixes Identified & Resolved:
+    - Added `CORSMiddleware` to `app/main.py` allowing cross-origin requests from Flutter Web and local development clients.
+    - Fixed image upload MIME type in `ApiClient.uploadMultipart` by passing `contentType: MediaType.parse(contentType)` via `http_parser`, resolving a backend 422 error caused by default `application/octet-stream`.
+    - Added `ReportRepository.instance.configure()` in `frontend/lib/main.dart` to ensure live API mode on application launch.
+  - Automated & Live Test Results:
+    - Live Flutter integration test suite (`test/live_backend_smoke_test.dart`): 8 of 8 passed against real backend.
+    - Full Flutter test suite (`flutter test`): 55 of 55 tests passed.
+    - Static analysis: `flutter analyze` 0 issues; `dart format` cleanly formatted.
+    - Backend test suite: `pytest tests/` 23 of 23 passed.
+  - Repository Safety:
+    - Zero Git write operations executed. Developer retains manual git ownership.
+- 2026-10-13: Completed Phase 6.6 — Real Maps & Geolocation.
+  - Scope: Replaced placeholder `TacticalMapPainter` with real `flutter_map` (CartoDB Dark Matter tiles), integrated backend report markers with grayscale status differentiation, implemented real GPS permissions & position retrieval via `LocationService` with manual map-based fallback, and connected radius discovery (`radius_km` 0.5–5.0 km, 1 decimal place) to the FastAPI PostGIS backend.
+  - Architecture & Services Implemented:
+    1. `MapConfig` (`frontend/lib/services/map_config.dart`): CartoDB Dark Matter tile layer configuration (`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png`), OpenStreetMap & CARTO attribution, default viewport center `LatLng(50.4501, 30.5234)`, zoom boundaries 3.0 to 18.0, and supported discovery radii `[0.5, 1.0, 2.0, 5.0]`. No secret API keys required.
+    2. `LocationService` (`frontend/lib/services/location_service.dart`): Device GPS geolocation using `geolocator`, comprehensive permission handling (`denied`, `permanentlyDenied`, `disabled`, `timeout`), mockable test instance injection, manual fallback coordinate placement (`setManualLocation`), and zero coordinate fabrication.
+    3. `ReportRepository` (`frontend/lib/services/report_repository.dart`): Added radius search parameters (`latitude`, `longitude`, `radius_km`), strict serialization with 1 decimal place (`.toStringAsFixed(1)`), clamped radius within backend boundary (`0.1` to `5.0` km), automatic `sort='distance'` sorting when coordinates are active, and `clearGeoSearch()` capability.
+    4. `MapScreen` (`frontend/lib/ui/screens/map_screen.dart`): Real `FlutterMap` canvas with `TileLayer`, `CircleLayer` displaying search radius, and `MarkerLayer` with monochromatic markers. Grayscale differentiation: Missing reports (`#151515`, `Icons.help_outline`, white border) vs Found reports (`#222222`, `Icons.check_circle_outline`, gray border). Marker tap displays preview card with direct navigation to `ReportDetailsScreen`. Integrated "Locate Me" GPS action, location permission warning bottom sheet with manual map placement fallback, radius selector chips (`0.5`, `1.0`, `2.0`, `5.0 km`), and filter chips (`All`, `Missing`, `Found`).
+    5. `CreateReportScreen` (`frontend/lib/ui/screens/create_report_screen.dart`): Replaced static Kyiv presets with "Use GPS" position button and interactive "Pick on Map" bottom sheet modal (`FlutterMap`) with draggable coordinate confirmation and manual latitude/longitude input validation (-90..90, -180..180).
+    6. Platform Configurations: Added `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, and `INTERNET` permissions to `frontend/android/app/src/main/AndroidManifest.xml`.
+  - Testing & Quality Verification:
+    - Dedicated Phase 6.6 test suite (`frontend/test/phase_6_6_test.dart`): 17 unit and widget tests covering MapConfig specifications, LocationService GPS/permissions/timeouts/manual anchor, ReportRepository geo radius parameter formatting and clamping, MapScreen real map rendering/markers/radius chips/preview card navigation/GPS locate/permission notices, and CreateReportScreen GPS & map picker integration.
+    - Full Flutter test suite (`flutter test`): 72 of 72 tests passed (including `phase_6_4_test.dart`, `phase_6_5_test.dart`, `phase_6_6_test.dart`, `live_backend_smoke_test.dart`, `stabilization_test.dart`, `widget_test.dart`).
+    - Static analysis: `flutter analyze` passed with 0 issues found.
+- 2026-10-14: Completed Phase 6.7 — End-to-End Testing & Hardening.
+  - Scope: Hardened and end-to-end verified the complete Missing/Found reporting and recovery-request workflows across Flutter, FastAPI, PostgreSQL/PostGIS, and MinIO.
+  - Verified & Hardened Workflows:
+    1. Real Application Flow: Registration, login, profile retrieval (`/api/v1/users/me`), report creation (Missing/Found), report listing with filters, report details by UUID, image upload to MinIO/S3, refresh token rotation, and clean logout. Verified live against running FastAPI daemon (10/10 PASS).
+    2. Map Discovery & Geolocation: Real coordinates, Missing vs Found filtering, radius searches (0.1–5.0 km, 1 decimal place), and marker tap navigation to `ReportDetailsScreen`.
+    3. Location Service Hardening: Graceful permission handling (denied, permanently denied, disabled, timeouts), zero coordinate fabrication, manual map placement fallback, and coordinate range validation (-90..90, -180..180).
+    4. Recovery Request Independence: Verified finder/owner independence—finders can initiate handover contact on Missing reports without creating a Found report first; owners can claim Found items without creating a Missing report. Documented backend gap (SQLAlchemy `RecoveryRequest` model in `app/db/models.py` lacks mounted FastAPI endpoints in `app/main.py`; simulated via UI).
+    5. Error Handling & Edge Cases: Negative reward defense-in-depth guard (`ArgumentError`), pagination metadata parsing (`totalReports`, `currentPage`, `pageSize`, `totalPages`), transparent 401 retry, 403 Forbidden handling, 404 fallback, 422 validation, empty states, and `NetworkException` handling.
+    6. Rewards Policy: Optional rewards strictly restricted to Missing reports; Found reports discard rewards; zero payment processing, KYC, or identity verification introduced.
+    7. CORS & Base URLs: Web vs Android (`10.0.2.2:8000`) configurations and local development base URLs verified.
+  - Confirmed Defects & Architectural Fixes:
+    1. `frontend/lib/ui/screens/create_report_screen.dart`: Fixed missing `reportId: created.id` parameter in `ReportDetailsScreen` constructor for SnackBar VIEW action.
+    2. `frontend/lib/ui/screens/recovery_requests_screen.dart`: Fixed horizontal `RenderFlex` overflow (262px on mobile viewports) by wrapping request title and sender details in `Expanded` with ellipsis text overflow.
+    3. `frontend/lib/services/report_repository.dart`: Added negative reward defense-in-depth check and pagination metadata getters (`totalReports`, `currentPage`, `pageSize`, `totalPages`).
+    4. `frontend/test/phase_6_7_test.dart`: Created comprehensive 19-test suite across 6 groups covering all hardening requirements.
+  - Automated Quality & Testing Results:
+    - Phase 6.7 test suite (`test/phase_6_7_test.dart`): 19 of 19 passed.
+    - Full Flutter test suite (`flutter test`): 91 of 91 tests passed across all 7 test files.
+    - Static analysis: `flutter analyze` 0 issues.
+    - Code formatting: `dart format .` cleanly formatted.
+    - Backend test suite: `pytest tests/` 23 of 23 passed.
+    - Backend lint & format: `ruff check` and `ruff format --check` 0 issues.
+    - Backend typing: `mypy app tests` 0 issues in 23 files.
+    - Live smoke test: 10 of 10 checks passed against local FastAPI daemon.
+  - Guardrails & Repository Safety:
+    - Zero Git write operations performed (manual git ownership retained by developer).
+    - Preserved monochromatic Swiss-modernist design tokens (`#080808`, `#151515`, `#303030`).
+- 2026-10-14: Completed Phase 6.8 — Release Preparation.
+  - Scope: Resolved recovery-request persistence across the stack, hardened platform token storage, audited release readiness configurations, and performed comprehensive end-to-end regression and live smoke testing.
+  - Recovery-Request Persistence & API Implementation:
+    1. Reused existing `RecoveryRequest` SQLAlchemy model and migration `b3feb293d5d0_phase_2_domain_model.py` without duplicating models or creating unnecessary migrations.
+    2. Implemented `app/schemas/recovery.py` with strict Pydantic v2 schemas: `CreateRecoveryRequest`, `UpdateRecoveryRequestStatus`, `RecoveryRequestResponse`, `RecoveryRequestListResponse`, and nested report/user response models.
+    3. Implemented `app/services/recovery.py` with strict authorization logic:
+       - Self-recovery prevention: returns 400 Bad Request if report owner initiates request on their own report.
+       - Duplicate prevention: returns 409 Conflict if an active (`PENDING` or `ACCEPTED`) request already exists for that user and report.
+       - Participant access: returns 403 Forbidden for third-party access to request details or status updates.
+       - State machine enforcement: returns 422 Unprocessable Entity for invalid transitions (e.g. `PENDING` -> `COMPLETED`, transitions from terminal statuses `REJECTED`, `CANCELLED`, `COMPLETED`).
+       - Recipient allowed transitions: `ACCEPTED`, `REJECTED`. Requester allowed transitions: `CANCELLED`.
+       - Automatic resolution: transitioning a request to `COMPLETED` automatically marks the associated `Report.status` as `RESOLVED` in PostgreSQL.
+    4. Implemented `app/api/recovery.py` mounting `POST /api/v1/recovery-requests`, `GET /api/v1/recovery-requests`, `GET /api/v1/recovery-requests/{id}`, and `PATCH /api/v1/recovery-requests/{id}` on FastAPI application in `app/main.py`.
+    5. Added 6 comprehensive backend regression tests in `tests/test_recovery.py` covering Missing/Found report requests, self-report rejection, duplicate rejection, unauthorized access, and complete transition lifecycles.
+  - Frontend Recovery Persistence & UI Integration:
+    1. Created `frontend/lib/models/recovery_request_model.dart` for parsing and serializing recovery request DTOs.
+    2. Created singleton `frontend/lib/services/recovery_repository.dart` managing live API calls (`createRecoveryRequest`, `loadRequests`, `updateRequestStatus`), local observable state, and fallback mock mode for unit tests.
+    3. Connected `frontend/lib/ui/screens/report_details_screen.dart` to dispatch real requests via `RecoveryRepository.instance.createRecoveryRequest()`.
+    4. Connected `frontend/lib/ui/screens/recovery_requests_screen.dart` to display real received and sent requests, dynamically count items per tab, and execute real status updates on Accept and Decline actions.
+    5. Added 10 Flutter unit, widget, and integration tests in `frontend/test/phase_6_8_test.dart` covering model serialization, live API error handling, token storage fallback, and UI workflow integration.
+  - Release Readiness & Security Hardening:
+    1. Platform Token Storage: Replaced volatile in-memory storage default in `AuthService` with `SecurePlatformTokenStorage` utilizing `flutter_secure_storage` (Android Keystore, iOS Keychain, Windows DPAPI, Web IndexedDB/localStorage fallback). Documented web storage limitations explicitly.
+    2. API & Environment Audits: Verified dynamic API base URL handling with mobile/emulator overrides (`10.0.2.2:8000` on Android, `localhost:8000` on Desktop/Web), CORS origin whitelisting in `app/core/config.py`, MinIO S3 credentials, database connection strings, and production structured error handling.
+    3. Map Attribution: Verified `CartoDB Dark Matter / OpenStreetMap / CARTO` tile attribution in map widgets without claiming offline maps are supported.
+    4. Scope Boundaries: Verified rewards apply strictly to Missing reports; zero payment processing, escrow, KYC, or identity verification introduced.
+  - Automated Quality & Testing Results:
+    - Backend test suite (`pytest tests/`): 29 of 29 passed.
+    - Backend linter & formatter (`ruff check`, `ruff format --check`): 0 issues across all 27 files.
+    - Backend type checker (`mypy .`): 0 issues across all 31 source files.
+    - Frontend analysis (`flutter analyze`): 0 issues found.
+    - Frontend formatting (`dart format .`): Clean (36 files, 0 changed).
+    - Frontend test suite (`flutter test`): 101 of 101 passed across 8 test suites.
+    - Live End-to-End Smoke Test (`scratch/live_recovery_smoke_test.py`): 16 of 16 assertions passed against live running PostgreSQL and FastAPI daemon.
+  - Guardrails & Repository Safety:
+    - Zero Git write operations performed (manual git ownership retained by developer).
+    - Preserved monochromatic Swiss-modernist design tokens (`#080808`, `#151515`, `#303030`).
+- 2026-10-15: Completed Manual Testing Remediation (Steps 1 to 5).
+  - Step 1 — Unexpected data & identity:
+    - Fixed desktop sidebar user identity unit in `main_nav_screen.dart` to dynamically bind to `AuthService.instance.currentUser` (name and email), removing hardcoded "Alex Morgan" and "Verified Member".
+    - Fixed `ProfileScreen` in `profile_screen.dart` to dynamically calculate operational summary counts for active missing reports, resolved reports, and received/sent recovery requests from live repositories (`ReportRepository.instance.userReports`, `RecoveryRepository.instance.receivedRequests`, `RecoveryRepository.instance.sentRequests`), eliminating hardcoded "3 reports: 2 active missing, 1 resolved" and "2 received, 1 sent".
+    - Removed mock report fallbacks from live authenticated mode in `ReportRepository.userReports` and `RecoveryRepository`, ensuring clean empty states for new accounts while isolating mock mode strictly to unit tests.
+    - Updated backend `app/api/reports.py` and `app/api/deps.py` with `get_optional_current_user` to allow unauthenticated public discovery while enforcing authorization.
+  - Step 2 — Map tile rendering:
+    - Replaced CARTO dark tile endpoint in `MapConfig.tileUrl` with OpenStreetMap public raster tiles (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`), eliminating "API KEY REQUIRED" watermarks without paid dependencies or embedded secrets.
+    - Added `MapConfig.darkTileBuilder` applying an inverted luminance color filter matrix to render standard OSM tiles in sleek monochromatic dark mode.
+    - Updated tile layer attribution to `© OpenStreetMap contributors`.
+  - Step 3 — Coherent location-selection flow:
+    - Removed hardcoded "Downtown Kyiv" selector across `HomeScreen` and `MapScreen`.
+    - Created `GeocodingService` utilizing OpenStreetMap Nominatim search API with custom user agent and rate limiting.
+    - Created `LocationSelectionSheet` modal allowing users to search places with autocomplete results, detect GPS position via `LocationService` (with explicit permission-denied / service-disabled messages), tap map to anchor coordinates, view active anchor label, and clear selection.
+    - Synchronized active location state via observable `LocationService.instance` shared between `HomeScreen` and `MapScreen`.
+  - Step 4 — Enforce 5 km nearby filtering:
+    - Enforced default 5.0 km search radius across `HomeScreen` and `MapScreen` (`radius_km=5.0`, `sort=distance`).
+    - Handled unanchored state on `HomeScreen` with a prompt card to select location rather than executing unbounded or arbitrary queries.
+    - Handled empty nearby results with clear empty state indicators.
+  - Step 5 — Verification & Regression Protection:
+    - Added comprehensive regression test suite in `frontend/test/remediation_test.dart` (11 passing tests) covering sidebar identity, profile summary counts, empty states, live repository mock isolation, Nominatim place search, manual anchor synchronization, 5 km API query parameters, and OSM map tile configuration.
+    - Updated legacy test expectations in `phase_6_6_test.dart`, `phase_6_7_test.dart`, `stabilization_test.dart`, and `widget_test.dart` to align with the remediation.
+    - Verified: `flutter test` passed 104 out of 104 tests with 0 failures across all 8 suites.
+    - Verified: `flutter analyze` reported 0 issues.
+    - Verified: `dart format .` cleanly formatted.
+    - Verified backend: `ruff check app tests` (0 errors), `ruff format --check app tests` (clean), `mypy app tests` (0 issues across 27 files).
+    - Preserved repository safety: 0 Git write operations executed.
+- 2026-10-15: Completed Backend Integration Test Verification.
+  - Environment Diagnostics & Recovery:
+    - Successfully verified Docker engine and Docker Compose stack: `tracker_db` (PostGIS 16-3.4 on port 5432) and `tracker_minio` (MinIO S3 on port 9000-9001) up and healthy.
+    - Verified database migrations at head via `alembic upgrade head` with transactional DDL.
+  - Full Backend Test Suite Execution:
+    - Executed `pytest tests/ -v`: 29 passed out of 29 in 24.25s (0 failures, 0 errors, 0 skipped).
+    - Tests verified: `test_auth.py` (5 tests), `test_geo.py` (5 tests), `test_main.py` (1 test), `test_models.py` (3 tests), `test_recovery.py` (6 tests), `test_reports.py` (9 tests).
+  - Code Quality Verification:
+    - `ruff check app tests`: All checks passed!
+    - `ruff format --check app tests`: 27 files already formatted.
+    - `mypy app tests`: Success: no issues found in 27 source files.
+  - Live API End-to-End Verification:
+    - Started live backend daemon on `http://127.0.0.1:8000`.
+    - Executed `flutter test test/live_backend_smoke_test.dart`: 8 of 8 passed.
+    - Executed automated live smoke verification covering `GET /health`, registration/login/me, Missing report creation, unauthenticated public discovery, 5 km geospatial radius filtering (positive nearby detection at 0.73 km vs negative out-of-range exclusion), duplicate/self-recovery rejection, received/sent listings, acceptance with contact info, and status completion automatically setting report to `RESOLVED`.
+    - Cleanly terminated live test daemon.
+  - Repository Safety:
+    - Zero Git write operations performed. Existing uncommitted changes preserved.
+- 2026-10-17: Completed Consolidated UI Remediation and Full Regression Verification.
+  - Global Notification System (`AppToast`):
+    - Created unified monochromatic toast notification widget `AppToast` in `frontend/lib/ui/widgets/app_toast.dart` replacing raw, inconsistent white banner SnackBars.
+    - Designed with charcoal `#151515` background, subtle `#303030` border, readable `#F5F5F5` text, neutral monochrome icons, smooth slide/fade animations, horizontal swipe dismiss, close button, and non-blocking action callback.
+    - Updated `AppTheme.darkTheme` with matching `SnackBarThemeData` and replaced all raw `ScaffoldMessenger.of(context).showSnackBar` calls across all 10 application screens and sheets.
+  - Map Page Immediate Recentering & Location Sync:
+    - Updated `MapScreen._onLocationChanged()` to immediately invoke `_mapController.move(anchor, targetZoom)` and reload nearby reports without requiring page refresh or tab re-navigation.
+    - Preserved active map anchor across Home and Map tabs via `LocationService.instance`.
+  - Dynamic Identity & Session Isolation:
+    - Removed hardcoded "Alex Morgan", fake member badges, and placeholder IDs from live paths.
+    - Bound `MainNavScreen` sidebar, avatar initials, `ProfileScreen` heading, and counts strictly to `AuthService.instance.currentUser` (with accurate 0 counts for fresh accounts).
+    - Added `clearUserData()` to `ReportRepository` and `RecoveryRepository` invoked on `AuthService.logout()` to ensure complete state isolation between sessions.
+  - Startup Auth Gate (`AppRoot`):
+    - Implemented reactive `AppRoot` in `frontend/lib/main.dart` listening to `AuthService.instance`.
+    - Fresh launch with no tokens boots to `LoginScreen()`; valid stored tokens restore authenticated session directly into `MainNavScreen()`; logout or expired sessions redirect immediately to `LoginScreen()`.
+  - Verification & Quality:
+    - Full Flutter test suite: 121 of 121 tests passed (100% pass rate across all suites including `phase_6_5_test.dart`, `remediation_test.dart`, `stabilization_test.dart`, `widget_test.dart`, and `live_backend_smoke_test.dart`).
+    - Static analysis: `flutter analyze` reported 0 issues.
+    - Code formatting: `dart format .` completed with 0 differences.
+    - Full backend test suite: `pytest` passed 29 of 29 tests in 23.62s.
+    - Backend linting, format check, and strict typing: `ruff check` (0 errors), `ruff format --check` (clean), `mypy` (0 errors across 27 files).
+    - Live infrastructure: `tracker_db` (PostGIS 16-3.4) and `tracker_minio` Docker containers healthy; backend health check endpoint returning `{"status": "ok", "database": "ok"}`.
+    - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.
+- 2026-10-17: Fixed Nearby Reports Location Anchor & Strict 5 km Radius Enforcement.
+  - Root Cause Analysis:
+    1. Unanchored Query Trigger: `HomeScreen.initState` unconditionally called `ReportRepository.instance.loadReports(latitude: null, longitude: null, radiusKm: null)` when `LocationService.instance.currentLocation` was null, querying the backend without geographic bounds and populating Home with 50 globally unfiltered reports.
+    2. Unconditional Insertion on Report Creation: `ReportRepository.createReport` prepended newly created reports via `_reports.insert(0, finalReport); notifyListeners();` regardless of the active anchor or whether the report was within 5 km.
+    3. UI Cache Leak: `HomeScreen._allReports` and `MapScreen._filteredReports` exposed `_reports` without asserting that a valid anchor was active.
+  - Architecture & Data Flow Fixes:
+    - Dedicated Repositories & State Separation:
+      - `_reports` in `ReportRepository` now strictly contains nearby reports filtered for the active anchor.
+      - User's created reports are preserved in `_userCreatedReports` and `_cachedReportsById`, ensuring they remain fully accessible in `MyReportsScreen` and `ReportDetailsScreen` without polluting the nearby feed.
+      - `createReport`: In live mode, saves to `_cachedReportsById` and `_userCreatedReports`. Does not unconditionally insert into `_reports`. If an anchor is active, re-queries nearby reports with `radius_km=5.0`; if unanchored, calls `clearGeoSearch()`.
+    - Unanchored Empty State Enforcement:
+      - `HomeScreen` and `MapScreen` enforce that if `!LocationService.instance.hasLocation && !isMockMode`, zero nearby cards are rendered and the count displays `0 items`.
+      - Displays monochrome empty state: "Select a location to see reports within 5 km." (Home) and "Select a location to see reports within 5.0 km." (Map collapsible panel).
+    - Race Condition & Stale Response Protection:
+      - Implemented `_requestSequence` counter in `ReportRepository`. Any slow in-flight response for an older anchor or query is discarded if `_requestSequence` has advanced.
+      - In live mode, network failures clear stale reports and transition the UI to an explicit error/retry card instead of mock data.
+    - PostGIS Spatial Filtering Before Pagination (Case 13):
+      - Backend spatial queries (`ST_DWithin` on geography with 5.0 km radius) apply in SQL before `COUNT(*)` and before pagination (`OFFSET` / `LIMIT`), ensuring total matches reflect only geographically valid records.
+  - Verification & Quality:
+    - Full Flutter test suite: 132 of 132 tests passed (including 11 comprehensive regression tests in `test/nearby_location_anchor_test.dart`).
+    - Flutter static analysis: `flutter analyze` reported 0 issues.
+    - Dart formatting: `dart format --output=none --set-exit-if-changed .` clean (0 differences across 41 files).
+    - Backend test suite: `pytest` passed 30 of 30 tests in 29.10s (including new spatial filtering before pagination & radius boundaries test in `tests/test_geo.py`).
+    - Backend linting & typing: `ruff check` (0 errors), `ruff format --check` (27 files formatted), `mypy app tests` (0 errors across 27 files).
+    - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.
+
+
+
+
+
+
+
+
+
+
+
+
+

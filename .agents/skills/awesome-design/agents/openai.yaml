@@ -1,0 +1,4 @@
+interface:
+  display_name: "Awesome Design"
+  short_description: "Visually browse design systems and generate ready-to-use prompts"
+  default_prompt: "Use $awesome-design to open the preview library, compare design systems visually, pick the right DESIGN.md, generate a prompt for Codex or Claude, and apply its visual rules to the UI you generate."

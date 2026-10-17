@@ -1,6 +1,7 @@
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+extend-exclude = [".agents", "frontend", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -11,6 +12,7 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+exclude = ["^frontend/", "^\\.venv/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

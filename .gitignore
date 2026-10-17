@@ -8,3 +8,5 @@ dist/
 *.egg-info/
 .env*
 .antigravity/scratchpad/
+stitch_export/
+

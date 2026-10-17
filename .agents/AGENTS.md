@@ -1,12 +1,16 @@
 @[Project Memory](.agents/AGENT_MEMORY.md)
+@[Design Policy](.agents/DESIGN_POLICY.md)
 
 ## Tech Stack
 - Backend: Python 3.12+, FastAPI, SQLAlchemy 2.x, PostgreSQL/PostGIS, aiokafka, Pydantic v2.
-- Testing: pytest
-- Linting/Formatting: Ruff
-- Type Checking: mypy
+- Frontend: Dart 3.x, Flutter 3.x, `google_fonts`, Material 3 design tokens.
+- Backend Testing: pytest
+- Backend Linting/Formatting: Ruff
+- Backend Type Checking: mypy
+- Frontend Formatting & Testing: `dart format`, `flutter analyze`, `flutter test`
 
 ## Canonical Commands (Windows)
+### Backend
 - Create environment: `python -m venv .venv`
 - Activate environment: `.venv\Scripts\Activate.ps1`
 - Install dependencies: `.venv\Scripts\python.exe -m pip install -r requirements.txt`
@@ -17,10 +21,29 @@
 - All tests: `.venv\Scripts\python.exe -m pytest`
 - Single test: `.venv\Scripts\python.exe -m pytest path/to/test_file.py::test_name -q`
 
+### Frontend
+- Format code: `cd frontend; dart format .`
+- Analyze code: `cd frontend; flutter analyze`
+- All tests: `cd frontend; flutter test`
+- Single test: `cd frontend; flutter test path/to/test_file.dart`
+
+## Design Skills & UI Refinement
+Consult the three installed workspace design skills whenever implementing UI features, redesigning screens, auditing layout quality, or refining accessibility:
+1. **`design-taste-frontend`** (`.agents/skills/design-taste-frontend/SKILL.md`): Use for visual hierarchy, typography scaling, spacing, layout composition, and avoiding generic template defaults.
+2. **`web-design-guidelines`** (`.agents/skills/web-design-guidelines/SKILL.md`): Use for auditing accessibility (`Semantics`, `Tooltip`), keyboard focus, form input patterns, and responsive behavior adapted to Flutter.
+3. **`awesome-design`** (`.agents/skills/awesome-design/SKILL.md`): Use to reference real-world design system specifications and token structures under `.agents/skills/awesome-design/design-md/`.
+
+### Design Authority Order
+Resolve conflicting recommendations in this order:
+1. Boomerang product requirements & business rules (`.agents/PROJECT_SPEC.md`).
+2. Google Stitch HTML/PNG export references (`stitch_export/`).
+3. Boomerang established theme and design tokens (`frontend/lib/theme.dart`, `.agents/DESIGN_POLICY.md`).
+4. Applicable guidance from the three design skills.
+
 ## Execution Guardrails
 1. **Minimal Diffs**: Make precise, in-place edits. Do not rewrite files unnecessarily.
 2. **Strict Typing**: Zero tolerance for untyped or loose variables. All Python code must pass `mypy --strict`.
-3. **Mandatory Tests**: Run the appropriate single-test or typecheck command before marking a task as complete.
+3. **Mandatory Tests**: Run the appropriate single-test, test suite, or typecheck command before marking a task as complete.
 4. **Session Logging**: Update `.agents/AGENT_MEMORY.md` under `# Session Log` after completing substantive milestones.
 5. **No Global Dependencies**: Use `.venv\Scripts\python.exe` for all tool executions.
 6. **Manual Git Operations**: Never execute `git` commands autonomously (like `git add`, `git commit`). Always ask the user to perform them manually.

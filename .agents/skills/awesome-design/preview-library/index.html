@@ -1,0 +1,2475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Awesome Design Preview Library</title>
+  <style>
+    :root {
+      --bg: #f4efe7;
+      --bg-accent: #ebe2d3;
+      --surface: rgba(255, 251, 245, 0.90);
+      --surface-strong: #fffaf2;
+      --surface-deep: #f8f0e4;
+      --border: rgba(87, 62, 36, 0.16);
+      --text: #1e1a16;
+      --muted: #615447;
+      --accent: #b7602f;
+      --accent-strong: #8d4c24;
+      --accent-soft: #f3d9c6;
+      --shadow: 0 18px 60px rgba(66, 43, 22, 0.12);
+      --shadow-card: 0 14px 32px rgba(64, 44, 24, 0.09);
+      --ring: 0 0 0 4px rgba(183, 96, 47, 0.14);
+      --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      --sans: "Aptos", "Segoe UI Variable Text", "Trebuchet MS", sans-serif;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.72), transparent 28rem),
+        radial-gradient(circle at top right, rgba(183,96,47,0.10), transparent 22rem),
+        linear-gradient(180deg, #f6f2ea 0%, #f2eadf 100%);
+    }
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+    .shell {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 40px 24px 72px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 20px;
+      align-items: stretch;
+      margin-bottom: 24px;
+    }
+    .hero-panel,
+    .workflow,
+    .studio,
+    .controls {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+    }
+    .hero-panel {
+      padding: 34px 34px 30px;
+    }
+    .workflow {
+      padding: 28px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    h1,
+    h2,
+    h3 {
+      font-family: var(--serif);
+      letter-spacing: -0.04em;
+      margin: 0;
+    }
+    h1 {
+      margin-top: 18px;
+      font-size: clamp(2.6rem, 5vw, 4.8rem);
+      line-height: 0.95;
+    }
+    .hero-copy {
+      max-width: 70ch;
+      margin-top: 14px;
+      font-size: 18px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+    .hero-stat {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.6);
+      border: 1px solid rgba(87, 62, 36, 0.10);
+      min-width: 130px;
+    }
+    .hero-stat strong {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+    .hero-stat span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .workflow h2 {
+      font-size: 30px;
+      margin-bottom: 14px;
+    }
+    .workflow p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .workflow ol {
+      margin: 16px 0 0 20px;
+      padding: 0;
+      color: var(--text);
+      line-height: 1.85;
+    }
+    .studio {
+      margin-bottom: 24px;
+      padding: 22px;
+      background:
+        radial-gradient(circle at top right, rgba(183,96,47,0.08), transparent 20rem),
+        linear-gradient(180deg, rgba(255,250,242,0.95), rgba(251,245,235,0.92));
+    }
+    .studio-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: end;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .studio-copy {
+      max-width: 70ch;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+    .studio-layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
+      gap: 18px;
+    }
+    .selected-panel,
+    .composer-panel {
+      border-radius: 24px;
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      background: rgba(255,255,255,0.58);
+      box-shadow: var(--shadow-card);
+    }
+    .selected-panel {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .selected-placeholder {
+      min-height: 240px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      border-radius: 18px;
+      border: 1px dashed rgba(87, 62, 36, 0.18);
+      background: rgba(255,250,242,0.66);
+      padding: 24px;
+      line-height: 1.7;
+    }
+    .selected-card {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .selected-card.visible {
+      display: flex;
+    }
+    .selected-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+    }
+    .selected-top h3 {
+      font-size: 32px;
+      line-height: 1.02;
+    }
+    .selected-subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .selected-summary {
+      margin: 0;
+      line-height: 1.7;
+    }
+    .selected-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .path-box {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface-deep);
+      border: 1px solid rgba(87, 62, 36, 0.12);
+    }
+    .path-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .path-value {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.6;
+      word-break: break-all;
+      color: var(--text);
+    }
+    .selected-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .composer-panel {
+      padding: 20px;
+    }
+    .segmented {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .segment {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(87, 62, 36, 0.14);
+      background: rgba(255,255,255,0.76);
+      color: var(--text);
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+    .segment:hover {
+      transform: translateY(-1px);
+    }
+    .segment.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff7f1;
+    }
+    .composer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .field-wide {
+      grid-column: 1 / -1;
+    }
+    .field label,
+    .field-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .select,
+    .textarea {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      background: rgba(255,255,255,0.78);
+      color: var(--text);
+      padding: 14px 15px;
+      outline: none;
+      box-shadow: none;
+    }
+    .select:focus,
+    .textarea:focus {
+      border-color: rgba(183, 96, 47, 0.44);
+      box-shadow: var(--ring);
+    }
+    .textarea {
+      min-height: 118px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+    .prompt-output {
+      min-height: 300px;
+      font-family: var(--mono);
+      font-size: 13px;
+      background: #fffdf8;
+    }
+    .builder-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0;
+    }
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      margin-bottom: 24px;
+      padding: 18px;
+      background: rgba(255, 250, 242, 0.9);
+    }
+    .search-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .search {
+      flex: 1 1 320px;
+      min-width: 260px;
+      padding: 16px 18px;
+      font: inherit;
+      font-size: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      background: rgba(255,255,255,0.75);
+      color: var(--text);
+      outline: none;
+    }
+    .search:focus {
+      border-color: rgba(183, 96, 47, 0.45);
+      box-shadow: var(--ring);
+    }
+    .results {
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .filter-chip {
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      background: rgba(255,255,255,0.72);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+    .filter-chip:hover {
+      transform: translateY(-1px);
+      border-color: rgba(183, 96, 47, 0.24);
+    }
+    .filter-chip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff7f1;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .design-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      background: rgba(255, 251, 245, 0.92);
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      border-radius: 24px;
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .design-card:hover {
+      transform: translateY(-3px);
+    }
+    .design-card.selected {
+      border-color: rgba(183, 96, 47, 0.42);
+      box-shadow: 0 20px 40px rgba(108, 62, 30, 0.18);
+      transform: translateY(-3px);
+    }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 18px 0;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(183, 96, 47, 0.10);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .slug {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .mini-browser {
+      margin: 14px 18px 0;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(87, 62, 36, 0.12);
+      background: #fbf5ec;
+    }
+    .browser-chrome {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      background: linear-gradient(180deg, rgba(240,231,219,0.96), rgba(232,223,211,0.96));
+      border-bottom: 1px solid rgba(87, 62, 36, 0.10);
+    }
+    .browser-chrome span {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(87, 62, 36, 0.18);
+    }
+    .preview-frame {
+      position: relative;
+      height: 230px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .preview-frame iframe {
+      width: 1280px;
+      height: 900px;
+      border: 0;
+      transform: scale(0.29);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+    .card-body {
+      padding: 18px;
+    }
+    .card-body h2 {
+      font-size: 31px;
+      line-height: 1.02;
+    }
+    .title {
+      margin: 8px 0 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .summary {
+      margin: 0;
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+    .swatches {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+    }
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 0 18px 18px;
+      margin-top: auto;
+    }
+    .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .action-primary {
+      background: var(--accent);
+      color: #fff8f1;
+    }
+    .action-secondary {
+      background: rgba(183, 96, 47, 0.10);
+      color: var(--accent);
+      border-color: rgba(183, 96, 47, 0.12);
+    }
+    .action-outline {
+      background: transparent;
+      color: var(--text);
+      border-color: rgba(87, 62, 36, 0.16);
+    }
+    .action-muted {
+      background: rgba(87, 62, 36, 0.08);
+      color: var(--muted);
+      border-color: rgba(87, 62, 36, 0.08);
+      cursor: default;
+    }
+    .action-copy {
+      background: var(--surface-deep);
+      color: var(--text);
+      border-color: rgba(87, 62, 36, 0.16);
+    }
+    .status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .empty {
+      display: none;
+      padding: 48px 22px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    @media (max-width: 1180px) {
+      .hero,
+      .studio-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 820px) {
+      .composer-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 720px) {
+      .shell {
+        padding: 24px 16px 40px;
+      }
+      .hero-panel,
+      .workflow,
+      .studio,
+      .controls,
+      .selected-panel,
+      .composer-panel {
+        border-radius: 20px;
+      }
+      .hero-panel,
+      .workflow,
+      .studio,
+      .composer-panel,
+      .selected-panel {
+        padding: 20px;
+      }
+      .preview-frame {
+        height: 200px;
+      }
+      .preview-frame iframe {
+        transform: scale(0.24);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="hero-panel">
+        <span class="eyebrow">Visual Selection Layer</span>
+        <h1>Choose the design by seeing it, then turn it into a ready-to-send agent prompt.</h1>
+        <p class="hero-copy">
+          This library is the front door to `awesome-design`. Browse the real previews, lock in a visual direction,
+          then use the built-in composer to generate a prompt for Codex, Claude Code, or a generic coding agent.
+        </p>
+        <div class="hero-meta">
+          <div class="hero-stat"><strong>54</strong><span>design systems</span></div>
+          <div class="hero-stat"><strong>Prompt Composer</strong><span>Codex, Claude, and generic modes</span></div>
+          <div class="hero-stat"><strong>Local</strong><span>preview and DESIGN.md paths stay on your machine</span></div>
+        </div>
+      </div>
+      <aside class="workflow">
+        <h2>Recommended Flow</h2>
+        <p>Start with visual comparison, not prose. The goal is to choose a direction with confidence before any frontend work begins.</p>
+        <ol>
+          <li>Search by brand, mood, category, or product type.</li>
+          <li>Open the light or dark preview at full size when a card looks promising.</li>
+          <li>Click <strong>Use This Design</strong> to send that style into the composer.</li>
+          <li>Fill in the product brief, constraints, and target platform.</li>
+          <li>Copy the generated prompt into Codex or Claude, then build with the chosen `DESIGN.md`.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="studio" id="studio">
+      <div class="studio-header">
+        <div>
+          <span class="eyebrow">Selection Studio</span>
+          <h2 style="margin-top:14px; font-size:42px; line-height:0.98;">Visual choice and prompt generation live in one place.</h2>
+          <p class="studio-copy">
+            Pick a card below, review its exact `DESIGN.md` path, then generate a prompt that tells the agent to apply the design system faithfully without copying the source site's content blindly.
+          </p>
+        </div>
+      </div>
+
+      <div class="studio-layout">
+        <aside class="selected-panel">
+          <div class="selected-placeholder" id="selectedPlaceholder">
+            Select a design card below to inspect its path, previews, and ready-to-use prompt context.
+          </div>
+
+          <div class="selected-card" id="selectedCard">
+            <div class="selected-top">
+              <div>
+                <h3 id="selectedName"></h3>
+                <div class="selected-subtitle" id="selectedMeta"></div>
+              </div>
+              <span class="pill" id="selectedCategory"></span>
+            </div>
+            <p class="selected-summary" id="selectedSummary"></p>
+            <div class="selected-swatches" id="selectedSwatches"></div>
+            <div class="path-box">
+              <span class="path-label">DESIGN.md Path</span>
+              <div class="path-value" id="selectedPath"></div>
+            </div>
+            <div class="selected-actions">
+              <a class="action action-secondary" id="selectedDesignLink" href="#" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+              <a class="action action-outline" id="selectedPreviewLink" href="#" target="_blank" rel="noreferrer">Open Light Preview</a>
+              <a class="action action-outline" id="selectedDarkPreviewLink" href="#" target="_blank" rel="noreferrer">Open Dark Preview</a>
+            </div>
+          </div>
+        </aside>
+
+        <section class="composer-panel">
+          <span class="eyebrow">Prompt Composer</span>
+          <p class="studio-copy" style="margin-bottom: 18px;">
+            The generated prompt tells the agent to read the chosen `DESIGN.md`, keep the product brief intact, and carry over the visual language faithfully.
+          </p>
+
+          <div class="segmented" id="agentSegments">
+            <button class="segment active" type="button" data-agent="codex">Codex</button>
+            <button class="segment" type="button" data-agent="claude">Claude Code</button>
+            <button class="segment" type="button" data-agent="generic">Generic Agent</button>
+          </div>
+
+          <div class="composer-grid">
+            <div class="field">
+              <span class="field-label">Task Type</span>
+              <select class="select" id="taskType">
+                <option value="landing page">Landing page</option>
+                <option value="marketing site">Marketing site</option>
+                <option value="product dashboard">Product dashboard</option>
+                <option value="app shell">App shell</option>
+                <option value="design refresh">Design refresh</option>
+                <option value="component system">Component system</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="field-label">Surface</span>
+              <select class="select" id="surfaceType">
+                <option value="responsive desktop and mobile">Responsive desktop and mobile</option>
+                <option value="desktop-first web">Desktop-first web</option>
+                <option value="mobile-first web">Mobile-first web</option>
+                <option value="tablet and desktop">Tablet and desktop</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="field-label">Output Mode</span>
+              <select class="select" id="outputMode">
+                <option value="build new UI">Build new UI</option>
+                <option value="restyle existing UI">Restyle existing UI</option>
+                <option value="extend an existing screen">Extend an existing screen</option>
+                <option value="turn a wireframe into polished UI">Turn a wireframe into polished UI</option>
+              </select>
+            </div>
+            <div class="field">
+              <span class="field-label">Prompt Tone</span>
+              <select class="select" id="promptTone">
+                <option value="faithful">Faithful to the source design</option>
+                <option value="inspired">Inspired by the source design</option>
+                <option value="blended">Blend with the current product</option>
+              </select>
+            </div>
+            <div class="field field-wide">
+              <span class="field-label">Product Brief</span>
+              <textarea class="textarea" id="briefInput" placeholder="Describe the page or app you want to build, who it is for, and what the core outcome should be."></textarea>
+            </div>
+            <div class="field field-wide">
+              <span class="field-label">Non-negotiables</span>
+              <textarea class="textarea" id="constraintsInput" placeholder="List the pieces that must survive the styling pass: IA, conversion goals, brand constraints, accessibility, existing components, shipping constraints, and so on."></textarea>
+            </div>
+            <div class="field field-wide">
+              <span class="field-label">Extra Notes</span>
+              <textarea class="textarea" id="notesInput" placeholder="Optional notes: components to emphasize, pages to skip, motion constraints, dark mode preference, codebase context, or handoff expectations."></textarea>
+            </div>
+            <div class="field field-wide">
+              <span class="field-label">Generated Prompt</span>
+              <textarea class="textarea prompt-output" id="promptOutput" readonly>Select a design first, then the prompt will appear here.</textarea>
+            </div>
+          </div>
+
+          <div class="builder-actions">
+            <button class="action action-primary" type="button" id="copyPromptButton">Copy Prompt</button>
+            <button class="action action-copy" type="button" id="copyPathButton">Copy DESIGN.md Path</button>
+            <button class="action action-outline" type="button" id="resetBuilderButton">Reset Brief Fields</button>
+          </div>
+          <div class="status" id="copyStatus">Choose a design to activate the composer.</div>
+        </section>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="search-row">
+        <input id="search" class="search" type="search" placeholder="Search by site, category, or style words like editorial, gradient, fintech, minimal, cinematic..." />
+        <div id="results" class="results">54 designs</div>
+      </div>
+      <div class="filters">
+        <button class="filter-chip active" type="button" data-category="__all__">All</button>
+        <button class="filter-chip" type="button" data-category="AI &amp; Machine Learning">AI &amp; Machine Learning</button><button class="filter-chip" type="button" data-category="Design &amp; Productivity">Design &amp; Productivity</button><button class="filter-chip" type="button" data-category="Developer Tools &amp; Platforms">Developer Tools &amp; Platforms</button><button class="filter-chip" type="button" data-category="Enterprise &amp; Consumer">Enterprise &amp; Consumer</button><button class="filter-chip" type="button" data-category="Fintech &amp; Crypto">Fintech &amp; Crypto</button><button class="filter-chip" type="button" data-category="Infrastructure &amp; Cloud">Infrastructure &amp; Cloud</button>
+      </div>
+    </section>
+
+    <section id="grid" class="grid">
+      <article class="design-card" data-category="Enterprise &amp; Consumer" data-search="airbnb airbnb enterprise &amp; consumer travel marketplace. warm coral accent, photography-driven, rounded ui airbnb" data-slug="airbnb">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">airbnb</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/airbnb/preview.html" title="Airbnb light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Airbnb</h2>
+        <p class="title">Airbnb</p>
+        <p class="summary">Travel marketplace. Warm coral accent, photography-driven, rounded UI</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#222222" title="#222222"></span><span class="swatch" style="background:#ff385c" title="#ff385c"></span><span class="swatch" style="background:#e00b41" title="#e00b41"></span><span class="swatch" style="background:#6a6a6a" title="#6a6a6a"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="airbnb">Use This Design</button>
+        <a class="action action-outline" href="../design-md/airbnb/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/airbnb/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/airbnb/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="airtable airtable design &amp; productivity spreadsheet-database hybrid. colorful, friendly, structured data aesthetic airtable" data-slug="airtable">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">airtable</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/airtable/preview.html" title="Airtable light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Airtable</h2>
+        <p class="title">Airtable</p>
+        <p class="summary">Spreadsheet-database hybrid. Colorful, friendly, structured data aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#fff" title="#fff"></span><span class="swatch" style="background:#181d26" title="#181d26"></span><span class="swatch" style="background:#1b61c9" title="#1b61c9"></span><span class="swatch" style="background:#333" title="#333"></span><span class="swatch" style="background:#e0e2e6" title="#e0e2e6"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="airtable">Use This Design</button>
+        <a class="action action-outline" href="../design-md/airtable/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/airtable/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/airtable/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="apple apple enterprise &amp; consumer consumer electronics. premium white space, sf pro, cinematic imagery apple" data-slug="apple">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">apple</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/apple/preview.html" title="Apple light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Apple</h2>
+        <p class="title">Apple</p>
+        <p class="summary">Consumer electronics. Premium white space, SF Pro, cinematic imagery</p>
+        <div class="swatches"><span class="swatch" style="background:#1d1d1f" title="#1d1d1f"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#f5f5f7" title="#f5f5f7"></span><span class="swatch" style="background:#0071e3" title="#0071e3"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="apple">Use This Design</button>
+        <a class="action action-outline" href="../design-md/apple/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/apple/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/apple/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="bmw bmw enterprise &amp; consumer luxury automotive. dark premium surfaces, precise german engineering aesthetic bmw" data-slug="bmw">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">bmw</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/bmw/preview.html" title="BMW light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>BMW</h2>
+        <p class="title">BMW</p>
+        <p class="summary">Luxury automotive. Dark premium surfaces, precise German engineering aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#262626" title="#262626"></span><span class="swatch" style="background:#1c69d4" title="#1c69d4"></span><span class="swatch" style="background:#0653b6" title="#0653b6"></span><span class="swatch" style="background:#757575" title="#757575"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="bmw">Use This Design</button>
+        <a class="action action-outline" href="../design-md/bmw/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/bmw/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/bmw/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="cal.com cal design &amp; productivity open-source scheduling. clean neutral ui, developer-oriented simplicity cal.com" data-slug="cal">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">cal</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/cal/preview.html" title="Cal.com light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Cal.com</h2>
+        <p class="title">Cal.com</p>
+        <p class="summary">Open-source scheduling. Clean neutral UI, developer-oriented simplicity</p>
+        <div class="swatches"><span class="swatch" style="background:#242424" title="#242424"></span><span class="swatch" style="background:#111111" title="#111111"></span><span class="swatch" style="background:#898989" title="#898989"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#0099ff" title="#0099ff"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="cal">Use This Design</button>
+        <a class="action action-outline" href="../design-md/cal/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/cal/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/cal/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="claude claude ai &amp; machine learning anthropic&#x27;s ai assistant. warm terracotta accent, clean editorial layout claude (anthropic)" data-slug="claude">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">claude</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/claude/preview.html" title="Claude light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Claude</h2>
+        <p class="title">Claude (Anthropic)</p>
+        <p class="summary">Anthropic&#x27;s AI assistant. Warm terracotta accent, clean editorial layout</p>
+        <div class="swatches"><span class="swatch" style="background:#141413" title="#141413"></span><span class="swatch" style="background:#c96442" title="#c96442"></span><span class="swatch" style="background:#d97757" title="#d97757"></span><span class="swatch" style="background:#b53333" title="#b53333"></span><span class="swatch" style="background:#3898ec" title="#3898ec"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="claude">Use This Design</button>
+        <a class="action action-outline" href="../design-md/claude/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/claude/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/claude/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="clay clay design &amp; productivity creative agency. organic shapes, soft gradients, art-directed layout clay" data-slug="clay">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">clay</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/clay/preview.html" title="Clay light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Clay</h2>
+        <p class="title">Clay</p>
+        <p class="summary">Creative agency. Organic shapes, soft gradients, art-directed layout</p>
+        <div class="swatches"><span class="swatch" style="background:#faf9f7" title="#faf9f7"></span><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#dad4c8" title="#dad4c8"></span><span class="swatch" style="background:#eee9df" title="#eee9df"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="clay">Use This Design</button>
+        <a class="action action-outline" href="../design-md/clay/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/clay/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/clay/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="clickhouse clickhouse infrastructure &amp; cloud fast analytics database. yellow-accented, technical documentation style clickhouse" data-slug="clickhouse">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">clickhouse</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/clickhouse/preview.html" title="ClickHouse light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>ClickHouse</h2>
+        <p class="title">ClickHouse</p>
+        <p class="summary">Fast analytics database. Yellow-accented, technical documentation style</p>
+        <div class="swatches"><span class="swatch" style="background:#faff69" title="#faff69"></span><span class="swatch" style="background:#166534" title="#166534"></span><span class="swatch" style="background:#14572f" title="#14572f"></span><span class="swatch" style="background:#f4f692" title="#f4f692"></span><span class="swatch" style="background:#4f5100" title="#4f5100"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="clickhouse">Use This Design</button>
+        <a class="action action-outline" href="../design-md/clickhouse/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/clickhouse/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/clickhouse/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="cohere cohere ai &amp; machine learning enterprise ai platform. vibrant gradients, data-rich dashboard aesthetic cohere" data-slug="cohere">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">cohere</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/cohere/preview.html" title="Cohere light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Cohere</h2>
+        <p class="title">Cohere</p>
+        <p class="summary">Enterprise AI platform. Vibrant gradients, data-rich dashboard aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#212121" title="#212121"></span><span class="swatch" style="background:#17171c" title="#17171c"></span><span class="swatch" style="background:#1863dc" title="#1863dc"></span><span class="swatch" style="background:#9b60aa" title="#9b60aa"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="cohere">Use This Design</button>
+        <a class="action action-outline" href="../design-md/cohere/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/cohere/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/cohere/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Fintech &amp; Crypto" data-search="coinbase coinbase fintech &amp; crypto crypto exchange. clean blue identity, trust-focused, institutional feel coinbase" data-slug="coinbase">
+      <div class="card-top">
+        <span class="pill">Fintech &amp; Crypto</span>
+        <span class="slug">coinbase</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/coinbase/preview.html" title="Coinbase light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Coinbase</h2>
+        <p class="title">Coinbase</p>
+        <p class="summary">Crypto exchange. Clean blue identity, trust-focused, institutional feel</p>
+        <div class="swatches"><span class="swatch" style="background:#fff" title="#fff"></span><span class="swatch" style="background:#0a0b0d" title="#0a0b0d"></span><span class="swatch" style="background:#0052ff" title="#0052ff"></span><span class="swatch" style="background:#578bfa" title="#578bfa"></span><span class="swatch" style="background:#eef0f3" title="#eef0f3"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="coinbase">Use This Design</button>
+        <a class="action action-outline" href="../design-md/coinbase/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/coinbase/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/coinbase/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="composio composio infrastructure &amp; cloud tool integration platform. modern dark with colorful integration icons composio" data-slug="composio">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">composio</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/composio/preview.html" title="Composio light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Composio</h2>
+        <p class="title">Composio</p>
+        <p class="summary">Tool integration platform. Modern dark with colorful integration icons</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#0007cd" title="#0007cd"></span><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#0f0f0f" title="#0f0f0f"></span><span class="swatch" style="background:#2c2c2c" title="#2c2c2c"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="composio">Use This Design</button>
+        <a class="action action-outline" href="../design-md/composio/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/composio/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/composio/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="cursor cursor developer tools &amp; platforms ai-first code editor. sleek dark interface, gradient accents cursor" data-slug="cursor">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">cursor</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/cursor/preview.html" title="Cursor light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Cursor</h2>
+        <p class="title">Cursor</p>
+        <p class="summary">AI-first code editor. Sleek dark interface, gradient accents</p>
+        <div class="swatches"><span class="swatch" style="background:#26251e" title="#26251e"></span><span class="swatch" style="background:#f2f1ed" title="#f2f1ed"></span><span class="swatch" style="background:#e6e5e0" title="#e6e5e0"></span><span class="swatch" style="background:#f7f7f4" title="#f7f7f4"></span><span class="swatch" style="background:#ebeae5" title="#ebeae5"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="cursor">Use This Design</button>
+        <a class="action action-outline" href="../design-md/cursor/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/cursor/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/cursor/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="elevenlabs elevenlabs ai &amp; machine learning ai voice platform. dark cinematic ui, audio-waveform aesthetics elevenlabs" data-slug="elevenlabs">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">elevenlabs</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/elevenlabs/preview.html" title="ElevenLabs light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>ElevenLabs</h2>
+        <p class="title">ElevenLabs</p>
+        <p class="summary">AI voice platform. Dark cinematic UI, audio-waveform aesthetics</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f5f5f5" title="#f5f5f5"></span><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#4e4e4e" title="#4e4e4e"></span><span class="swatch" style="background:#777169" title="#777169"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="elevenlabs">Use This Design</button>
+        <a class="action action-outline" href="../design-md/elevenlabs/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/elevenlabs/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/elevenlabs/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="expo expo developer tools &amp; platforms react native platform. dark theme, tight letter-spacing, code-centric expo" data-slug="expo">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">expo</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/expo/preview.html" title="Expo light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Expo</h2>
+        <p class="title">Expo</p>
+        <p class="summary">React Native platform. Dark theme, tight letter-spacing, code-centric</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#1c2024" title="#1c2024"></span><span class="swatch" style="background:#0d74ce" title="#0d74ce"></span><span class="swatch" style="background:#476cff" title="#476cff"></span><span class="swatch" style="background:#47c2ff" title="#47c2ff"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="expo">Use This Design</button>
+        <a class="action action-outline" href="../design-md/expo/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/expo/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/expo/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="figma figma design &amp; productivity collaborative design tool. vibrant multi-color, playful yet professional figma" data-slug="figma">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">figma</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/figma/preview.html" title="Figma light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Figma</h2>
+        <p class="title">Figma</p>
+        <p class="summary">Collaborative design tool. Vibrant multi-color, playful yet professional</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#0acf83" title="#0acf83"></span><span class="swatch" style="background:#a259ff" title="#a259ff"></span><span class="swatch" style="background:#f24e1e" title="#f24e1e"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="figma">Use This Design</button>
+        <a class="action action-outline" href="../design-md/figma/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/figma/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/figma/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="framer framer design &amp; productivity website builder. bold black and blue, motion-first, design-forward framer" data-slug="framer">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">framer</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/framer/preview.html" title="Framer light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Framer</h2>
+        <p class="title">Framer</p>
+        <p class="summary">Website builder. Bold black and blue, motion-first, design-forward</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#0099ff" title="#0099ff"></span><span class="swatch" style="background:#a6a6a6" title="#a6a6a6"></span><span class="swatch" style="background:#090909" title="#090909"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="framer">Use This Design</button>
+        <a class="action action-outline" href="../design-md/framer/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/framer/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/framer/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="hashicorp hashicorp infrastructure &amp; cloud infrastructure automation. enterprise-clean, black and white hashicorp" data-slug="hashicorp">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">hashicorp</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/hashicorp/preview.html" title="HashiCorp light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>HashiCorp</h2>
+        <p class="title">HashiCorp</p>
+        <p class="summary">Infrastructure automation. Enterprise-clean, black and white</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#15181e" title="#15181e"></span><span class="swatch" style="background:#0d0e12" title="#0d0e12"></span><span class="swatch" style="background:#f1f2f3" title="#f1f2f3"></span><span class="swatch" style="background:#d5d7db" title="#d5d7db"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="hashicorp">Use This Design</button>
+        <a class="action action-outline" href="../design-md/hashicorp/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/hashicorp/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/hashicorp/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="ibm ibm enterprise &amp; consumer enterprise technology. carbon design system, structured blue palette ibm" data-slug="ibm">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">ibm</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/ibm/preview.html" title="IBM light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>IBM</h2>
+        <p class="title">IBM</p>
+        <p class="summary">Enterprise technology. Carbon design system, structured blue palette</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f4f4f4" title="#f4f4f4"></span><span class="swatch" style="background:#e8e8e8" title="#e8e8e8"></span><span class="swatch" style="background:#e0e0e0" title="#e0e0e0"></span><span class="swatch" style="background:#c6c6c6" title="#c6c6c6"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="ibm">Use This Design</button>
+        <a class="action action-outline" href="../design-md/ibm/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/ibm/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/ibm/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="intercom intercom design &amp; productivity customer messaging. friendly blue palette, conversational ui patterns intercom" data-slug="intercom">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">intercom</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/intercom/preview.html" title="Intercom light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Intercom</h2>
+        <p class="title">Intercom</p>
+        <p class="summary">Customer messaging. Friendly blue palette, conversational UI patterns</p>
+        <div class="swatches"><span class="swatch" style="background:#faf9f6" title="#faf9f6"></span><span class="swatch" style="background:#111111" title="#111111"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#ff5600" title="#ff5600"></span><span class="swatch" style="background:#dedbd6" title="#dedbd6"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="intercom">Use This Design</button>
+        <a class="action action-outline" href="../design-md/intercom/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/intercom/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/intercom/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Fintech &amp; Crypto" data-search="kraken kraken fintech &amp; crypto crypto trading platform. purple-accented dark ui, data-dense dashboards kraken" data-slug="kraken">
+      <div class="card-top">
+        <span class="pill">Fintech &amp; Crypto</span>
+        <span class="slug">kraken</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/kraken/preview.html" title="Kraken light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Kraken</h2>
+        <p class="title">Kraken</p>
+        <p class="summary">Crypto trading platform. Purple-accented dark UI, data-dense dashboards</p>
+        <div class="swatches"><span class="swatch" style="background:#fff" title="#fff"></span><span class="swatch" style="background:#101114" title="#101114"></span><span class="swatch" style="background:#7132f5" title="#7132f5"></span><span class="swatch" style="background:#5741d8" title="#5741d8"></span><span class="swatch" style="background:#686b82" title="#686b82"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="kraken">Use This Design</button>
+        <a class="action action-outline" href="../design-md/kraken/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/kraken/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/kraken/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="linear linear.app developer tools &amp; platforms project management for engineers. ultra-minimal, precise, purple accent linear" data-slug="linear.app">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">linear.app</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/linear.app/preview.html" title="Linear light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Linear</h2>
+        <p class="title">Linear</p>
+        <p class="summary">Project management for engineers. Ultra-minimal, precise, purple accent</p>
+        <div class="swatches"><span class="swatch" style="background:#f7f8f8" title="#f7f8f8"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f3f4f5" title="#f3f4f5"></span><span class="swatch" style="background:#1a1a1e" title="#1a1a1e"></span><span class="swatch" style="background:#3c3c43" title="#3c3c43"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="linear.app">Use This Design</button>
+        <a class="action action-outline" href="../design-md/linear.app/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/linear.app/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/linear.app/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="lovable lovable developer tools &amp; platforms ai full-stack builder. playful gradients, friendly dev aesthetic lovable" data-slug="lovable">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">lovable</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/lovable/preview.html" title="Lovable light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Lovable</h2>
+        <p class="title">Lovable</p>
+        <p class="summary">AI full-stack builder. Playful gradients, friendly dev aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#f7f4ed" title="#f7f4ed"></span><span class="swatch" style="background:#1c1c1c" title="#1c1c1c"></span><span class="swatch" style="background:#fcfbf8" title="#fcfbf8"></span><span class="swatch" style="background:#eceae4" title="#eceae4"></span><span class="swatch" style="background:#5f5f5d" title="#5f5f5d"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="lovable">Use This Design</button>
+        <a class="action action-outline" href="../design-md/lovable/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/lovable/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/lovable/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="minimax minimax ai &amp; machine learning ai model provider. bold dark interface with neon accents minimax" data-slug="minimax">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">minimax</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/minimax/preview.html" title="Minimax light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Minimax</h2>
+        <p class="title">MiniMax</p>
+        <p class="summary">AI model provider. Bold dark interface with neon accents</p>
+        <div class="swatches"><span class="swatch" style="background:#1456f0" title="#1456f0"></span><span class="swatch" style="background:#3daeff" title="#3daeff"></span><span class="swatch" style="background:#ea5ec1" title="#ea5ec1"></span><span class="swatch" style="background:#bfdbfe" title="#bfdbfe"></span><span class="swatch" style="background:#60a5fa" title="#60a5fa"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="minimax">Use This Design</button>
+        <a class="action action-outline" href="../design-md/minimax/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/minimax/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/minimax/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="mintlify mintlify developer tools &amp; platforms documentation platform. clean, green-accented, reading-optimized mintlify" data-slug="mintlify">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">mintlify</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/mintlify/preview.html" title="Mintlify light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Mintlify</h2>
+        <p class="title">Mintlify</p>
+        <p class="summary">Documentation platform. Clean, green-accented, reading-optimized</p>
+        <div class="swatches"><span class="swatch" style="background:#0d0d0d" title="#0d0d0d"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#fafafa" title="#fafafa"></span><span class="swatch" style="background:#f5f5f5" title="#f5f5f5"></span><span class="swatch" style="background:#e5e5e5" title="#e5e5e5"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="mintlify">Use This Design</button>
+        <a class="action action-outline" href="../design-md/mintlify/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/mintlify/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/mintlify/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="miro miro design &amp; productivity visual collaboration. bright yellow accent, infinite canvas aesthetic miro" data-slug="miro">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">miro</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/miro/preview.html" title="Miro light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Miro</h2>
+        <p class="title">Miro</p>
+        <p class="summary">Visual collaboration. Bright yellow accent, infinite canvas aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#fff" title="#fff"></span><span class="swatch" style="background:#1c1c1e" title="#1c1c1e"></span><span class="swatch" style="background:#5b76fe" title="#5b76fe"></span><span class="swatch" style="background:#2a41b6" title="#2a41b6"></span><span class="swatch" style="background:#00b473" title="#00b473"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="miro">Use This Design</button>
+        <a class="action action-outline" href="../design-md/miro/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/miro/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/miro/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="mistral ai mistral.ai ai &amp; machine learning open-weight llm provider. french-engineered minimalism, purple-toned mistral ai" data-slug="mistral.ai">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">mistral.ai</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/mistral.ai/preview.html" title="Mistral AI light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Mistral AI</h2>
+        <p class="title">Mistral AI</p>
+        <p class="summary">Open-weight LLM provider. French-engineered minimalism, purple-toned</p>
+        <div class="swatches"><span class="swatch" style="background:#fa520f" title="#fa520f"></span><span class="swatch" style="background:#fb6424" title="#fb6424"></span><span class="swatch" style="background:#ff8105" title="#ff8105"></span><span class="swatch" style="background:#ff8a00" title="#ff8a00"></span><span class="swatch" style="background:#ffa110" title="#ffa110"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="mistral.ai">Use This Design</button>
+        <a class="action action-outline" href="../design-md/mistral.ai/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/mistral.ai/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/mistral.ai/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="mongodb mongodb infrastructure &amp; cloud document database. green leaf branding, developer documentation focus mongodb" data-slug="mongodb">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">mongodb</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/mongodb/preview.html" title="MongoDB light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>MongoDB</h2>
+        <p class="title">MongoDB</p>
+        <p class="summary">Document database. Green leaf branding, developer documentation focus</p>
+        <div class="swatches"><span class="swatch" style="background:#001e2b" title="#001e2b"></span><span class="swatch" style="background:#00ed64" title="#00ed64"></span><span class="swatch" style="background:#00684a" title="#00684a"></span><span class="swatch" style="background:#006cfa" title="#006cfa"></span><span class="swatch" style="background:#3860be" title="#3860be"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="mongodb">Use This Design</button>
+        <a class="action action-outline" href="../design-md/mongodb/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/mongodb/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/mongodb/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="notion notion design &amp; productivity all-in-one workspace. warm minimalism, serif headings, soft surfaces notion" data-slug="notion">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">notion</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/notion/preview.html" title="Notion light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Notion</h2>
+        <p class="title">Notion</p>
+        <p class="summary">All-in-one workspace. Warm minimalism, serif headings, soft surfaces</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f6f5f4" title="#f6f5f4"></span><span class="swatch" style="background:#31302e" title="#31302e"></span><span class="swatch" style="background:#615d59" title="#615d59"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="notion">Use This Design</button>
+        <a class="action action-outline" href="../design-md/notion/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/notion/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/notion/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="nvidia nvidia enterprise &amp; consumer gpu computing. green-black energy, technical power aesthetic nvidia" data-slug="nvidia">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">nvidia</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/nvidia/preview.html" title="NVIDIA light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>NVIDIA</h2>
+        <p class="title">NVIDIA</p>
+        <p class="summary">GPU computing. Green-black energy, technical power aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#76b900" title="#76b900"></span><span class="swatch" style="background:#bff230" title="#bff230"></span><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#1a1a1a" title="#1a1a1a"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="nvidia">Use This Design</button>
+        <a class="action action-outline" href="../design-md/nvidia/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/nvidia/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/nvidia/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="ollama ollama ai &amp; machine learning run llms locally. terminal-first, monochrome simplicity ollama" data-slug="ollama">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">ollama</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/ollama/preview.html" title="Ollama light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Ollama</h2>
+        <p class="title">Ollama</p>
+        <p class="summary">Run LLMs locally. Terminal-first, monochrome simplicity</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#262626" title="#262626"></span><span class="swatch" style="background:#090909" title="#090909"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#fafafa" title="#fafafa"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="ollama">Use This Design</button>
+        <a class="action action-outline" href="../design-md/ollama/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/ollama/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/ollama/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="opencode ai opencode.ai ai &amp; machine learning ai coding platform. developer-centric dark theme opencode" data-slug="opencode.ai">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">opencode.ai</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/opencode.ai/preview.html" title="OpenCode AI light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>OpenCode AI</h2>
+        <p class="title">OpenCode</p>
+        <p class="summary">AI coding platform. Developer-centric dark theme</p>
+        <div class="swatches"><span class="swatch" style="background:#201d1d" title="#201d1d"></span><span class="swatch" style="background:#fdfcfc" title="#fdfcfc"></span><span class="swatch" style="background:#9a9898" title="#9a9898"></span><span class="swatch" style="background:#302c2c" title="#302c2c"></span><span class="swatch" style="background:#646262" title="#646262"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="opencode.ai">Use This Design</button>
+        <a class="action action-outline" href="../design-md/opencode.ai/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/opencode.ai/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/opencode.ai/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="pinterest pinterest design &amp; productivity visual discovery platform. red accent, masonry grid, image-first pinterest" data-slug="pinterest">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">pinterest</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/pinterest/preview.html" title="Pinterest light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Pinterest</h2>
+        <p class="title">Pinterest</p>
+        <p class="summary">Visual discovery platform. Red accent, masonry grid, image-first</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#211922" title="#211922"></span><span class="swatch" style="background:#e60023" title="#e60023"></span><span class="swatch" style="background:#62625b" title="#62625b"></span><span class="swatch" style="background:#91918c" title="#91918c"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="pinterest">Use This Design</button>
+        <a class="action action-outline" href="../design-md/pinterest/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/pinterest/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/pinterest/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="posthog posthog developer tools &amp; platforms product analytics. playful hedgehog branding, developer-friendly dark ui posthog" data-slug="posthog">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">posthog</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/posthog/preview.html" title="PostHog light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>PostHog</h2>
+        <p class="title">PostHog</p>
+        <p class="summary">Product analytics. Playful hedgehog branding, developer-friendly dark UI</p>
+        <div class="swatches"><span class="swatch" style="background:#4d4f46" title="#4d4f46"></span><span class="swatch" style="background:#23251d" title="#23251d"></span><span class="swatch" style="background:#F54E00" title="#F54E00"></span><span class="swatch" style="background:#F7A501" title="#F7A501"></span><span class="swatch" style="background:#b17816" title="#b17816"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="posthog">Use This Design</button>
+        <a class="action action-outline" href="../design-md/posthog/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/posthog/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/posthog/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="raycast raycast developer tools &amp; platforms productivity launcher. sleek dark chrome, vibrant gradient accents raycast" data-slug="raycast">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">raycast</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/raycast/preview.html" title="Raycast light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Raycast</h2>
+        <p class="title">Raycast</p>
+        <p class="summary">Productivity launcher. Sleek dark chrome, vibrant gradient accents</p>
+        <div class="swatches"><span class="swatch" style="background:#07080a" title="#07080a"></span><span class="swatch" style="background:#101111" title="#101111"></span><span class="swatch" style="background:#1b1c1e" title="#1b1c1e"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f9f9f9" title="#f9f9f9"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="raycast">Use This Design</button>
+        <a class="action action-outline" href="../design-md/raycast/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/raycast/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/raycast/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="replicate replicate ai &amp; machine learning run ml models via api. clean white canvas, code-forward replicate" data-slug="replicate">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">replicate</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/replicate/preview.html" title="Replicate light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Replicate</h2>
+        <p class="title">Replicate</p>
+        <p class="summary">Run ML models via API. Clean white canvas, code-forward</p>
+        <div class="swatches"><span class="swatch" style="background:#202020" title="#202020"></span><span class="swatch" style="background:#ea2804" title="#ea2804"></span><span class="swatch" style="background:#dd4425" title="#dd4425"></span><span class="swatch" style="background:#2b9a66" title="#2b9a66"></span><span class="swatch" style="background:#24292e" title="#24292e"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="replicate">Use This Design</button>
+        <a class="action action-outline" href="../design-md/replicate/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/replicate/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/replicate/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="resend resend developer tools &amp; platforms email api for developers. minimal dark theme, monospace accents resend" data-slug="resend">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">resend</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/resend/preview.html" title="Resend light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Resend</h2>
+        <p class="title">Resend</p>
+        <p class="summary">Email API for developers. Minimal dark theme, monospace accents</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#f0f0f0" title="#f0f0f0"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#a1a4a5" title="#a1a4a5"></span><span class="swatch" style="background:#464a4d" title="#464a4d"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="resend">Use This Design</button>
+        <a class="action action-outline" href="../design-md/resend/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/resend/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/resend/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Fintech &amp; Crypto" data-search="revolut revolut fintech &amp; crypto digital banking. sleek dark interface, gradient cards, fintech precision revolut" data-slug="revolut">
+      <div class="card-top">
+        <span class="pill">Fintech &amp; Crypto</span>
+        <span class="slug">revolut</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/revolut/preview.html" title="Revolut light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Revolut</h2>
+        <p class="title">Revolut</p>
+        <p class="summary">Digital banking. Sleek dark interface, gradient cards, fintech precision</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#191c1f" title="#191c1f"></span><span class="swatch" style="background:#f4f4f4" title="#f4f4f4"></span><span class="swatch" style="background:#494fdf" title="#494fdf"></span><span class="swatch" style="background:#4f55f1" title="#4f55f1"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="revolut">Use This Design</button>
+        <a class="action action-outline" href="../design-md/revolut/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/revolut/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/revolut/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="runwayml runwayml ai &amp; machine learning ai video generation. cinematic dark ui, media-rich layout runway" data-slug="runwayml">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">runwayml</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/runwayml/preview.html" title="RunwayML light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>RunwayML</h2>
+        <p class="title">Runway</p>
+        <p class="summary">AI video generation. Cinematic dark UI, media-rich layout</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#030303" title="#030303"></span><span class="swatch" style="background:#1a1a1a" title="#1a1a1a"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#fefefe" title="#fefefe"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="runwayml">Use This Design</button>
+        <a class="action action-outline" href="../design-md/runwayml/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/runwayml/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/runwayml/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="sanity sanity infrastructure &amp; cloud headless cms. red accent, content-first editorial layout sanity" data-slug="sanity">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">sanity</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/sanity/preview.html" title="Sanity light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Sanity</h2>
+        <p class="title">Sanity</p>
+        <p class="summary">Headless CMS. Red accent, content-first editorial layout</p>
+        <div class="swatches"><span class="swatch" style="background:#f7f7f7" title="#f7f7f7"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#f0f0f0" title="#f0f0f0"></span><span class="swatch" style="background:#0b0b0b" title="#0b0b0b"></span><span class="swatch" style="background:#212121" title="#212121"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="sanity">Use This Design</button>
+        <a class="action action-outline" href="../design-md/sanity/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/sanity/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/sanity/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="sentry sentry developer tools &amp; platforms error monitoring. dark dashboard, data-dense, pink-purple accent sentry" data-slug="sentry">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">sentry</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/sentry/preview.html" title="Sentry light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Sentry</h2>
+        <p class="title">Sentry</p>
+        <p class="summary">Error monitoring. Dark dashboard, data-dense, pink-purple accent</p>
+        <div class="swatches"><span class="swatch" style="background:#1f1633" title="#1f1633"></span><span class="swatch" style="background:#150f23" title="#150f23"></span><span class="swatch" style="background:#362d59" title="#362d59"></span><span class="swatch" style="background:#6a5fc1" title="#6a5fc1"></span><span class="swatch" style="background:#79628c" title="#79628c"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="sentry">Use This Design</button>
+        <a class="action action-outline" href="../design-md/sentry/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/sentry/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/sentry/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="spacex spacex enterprise &amp; consumer space technology. stark black and white, full-bleed imagery, futuristic spacex" data-slug="spacex">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">spacex</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/spacex/preview.html" title="SpaceX light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>SpaceX</h2>
+        <p class="title">SpaceX</p>
+        <p class="summary">Space technology. Stark black and white, full-bleed imagery, futuristic</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#f0f0fa" title="#f0f0fa"></span><span class="swatch" style="background:#ff4444" title="#ff4444"></span><span class="swatch" style="background:rgba(240,240,250,0.1)" title="rgba(240,240,250,0.1)"></span><span class="swatch" style="background:rgba(240,240,250,0.35)" title="rgba(240,240,250,0.35)"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="spacex">Use This Design</button>
+        <a class="action action-outline" href="../design-md/spacex/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/spacex/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/spacex/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="spotify spotify enterprise &amp; consumer music streaming. vibrant green on dark, bold type, album-art-driven spotify" data-slug="spotify">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">spotify</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/spotify/preview.html" title="Spotify light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Spotify</h2>
+        <p class="title">Spotify</p>
+        <p class="summary">Music streaming. Vibrant green on dark, bold type, album-art-driven</p>
+        <div class="swatches"><span class="swatch" style="background:#121212" title="#121212"></span><span class="swatch" style="background:#181818" title="#181818"></span><span class="swatch" style="background:#1f1f1f" title="#1f1f1f"></span><span class="swatch" style="background:#252525" title="#252525"></span><span class="swatch" style="background:#1ed760" title="#1ed760"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="spotify">Use This Design</button>
+        <a class="action action-outline" href="../design-md/spotify/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/spotify/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/spotify/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Infrastructure &amp; Cloud" data-search="stripe stripe infrastructure &amp; cloud payment infrastructure. signature purple gradients, weight-300 elegance stripe" data-slug="stripe">
+      <div class="card-top">
+        <span class="pill">Infrastructure &amp; Cloud</span>
+        <span class="slug">stripe</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/stripe/preview.html" title="Stripe light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Stripe</h2>
+        <p class="title">Stripe</p>
+        <p class="summary">Payment infrastructure. Signature purple gradients, weight-300 elegance</p>
+        <div class="swatches"><span class="swatch" style="background:#533afd" title="#533afd"></span><span class="swatch" style="background:#4434d4" title="#4434d4"></span><span class="swatch" style="background:#2e2b8c" title="#2e2b8c"></span><span class="swatch" style="background:#b9b9f9" title="#b9b9f9"></span><span class="swatch" style="background:#665efd" title="#665efd"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="stripe">Use This Design</button>
+        <a class="action action-outline" href="../design-md/stripe/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/stripe/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/stripe/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="supabase supabase developer tools &amp; platforms open-source firebase alternative. dark emerald theme, code-first supabase" data-slug="supabase">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">supabase</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/supabase/preview.html" title="Supabase light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Supabase</h2>
+        <p class="title">Supabase</p>
+        <p class="summary">Open-source Firebase alternative. Dark emerald theme, code-first</p>
+        <div class="swatches"><span class="swatch" style="background:#3ecf8e" title="#3ecf8e"></span><span class="swatch" style="background:#00c573" title="#00c573"></span><span class="swatch" style="background:#0f0f0f" title="#0f0f0f"></span><span class="swatch" style="background:#171717" title="#171717"></span><span class="swatch" style="background:#242424" title="#242424"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="supabase">Use This Design</button>
+        <a class="action action-outline" href="../design-md/supabase/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/supabase/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/supabase/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="superhuman superhuman developer tools &amp; platforms fast email client. premium dark ui, keyboard-first, purple glow superhuman" data-slug="superhuman">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">superhuman</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/superhuman/preview.html" title="Superhuman light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Superhuman</h2>
+        <p class="title">Superhuman</p>
+        <p class="summary">Fast email client. Premium dark UI, keyboard-first, purple glow</p>
+        <div class="swatches"><span class="swatch" style="background:#1b1938" title="#1b1938"></span><span class="swatch" style="background:#cbb7fb" title="#cbb7fb"></span><span class="swatch" style="background:#292827" title="#292827"></span><span class="swatch" style="background:#714cb6" title="#714cb6"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="superhuman">Use This Design</button>
+        <a class="action action-outline" href="../design-md/superhuman/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/superhuman/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/superhuman/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="together ai together.ai ai &amp; machine learning open-source ai infrastructure. technical, blueprint-style design together ai" data-slug="together.ai">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">together.ai</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/together.ai/preview.html" title="Together AI light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Together AI</h2>
+        <p class="title">Together AI</p>
+        <p class="summary">Open-source AI infrastructure. Technical, blueprint-style design</p>
+        <div class="swatches"><span class="swatch" style="background:#ef2cc1" title="#ef2cc1"></span><span class="swatch" style="background:#fc4c02" title="#fc4c02"></span><span class="swatch" style="background:#010120" title="#010120"></span><span class="swatch" style="background:#bdbbff" title="#bdbbff"></span><span class="swatch" style="background:#00000066" title="#00000066"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="together.ai">Use This Design</button>
+        <a class="action action-outline" href="../design-md/together.ai/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/together.ai/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/together.ai/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Enterprise &amp; Consumer" data-search="uber uber enterprise &amp; consumer mobility platform. bold black and white, tight type, urban energy uber" data-slug="uber">
+      <div class="card-top">
+        <span class="pill">Enterprise &amp; Consumer</span>
+        <span class="slug">uber</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/uber/preview.html" title="Uber light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Uber</h2>
+        <p class="title">Uber</p>
+        <p class="summary">Mobility platform. Bold black and white, tight type, urban energy</p>
+        <div class="swatches"><span class="swatch" style="background:#000000" title="#000000"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#e2e2e2" title="#e2e2e2"></span><span class="swatch" style="background:#f3f3f3" title="#f3f3f3"></span><span class="swatch" style="background:#efefef" title="#efefef"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="uber">Use This Design</button>
+        <a class="action action-outline" href="../design-md/uber/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/uber/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/uber/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="vercel vercel developer tools &amp; platforms frontend deployment platform. black and white precision, geist font vercel" data-slug="vercel">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">vercel</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/vercel/preview.html" title="Vercel light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Vercel</h2>
+        <p class="title">Vercel</p>
+        <p class="summary">Frontend deployment platform. Black and white precision, Geist font</p>
+        <div class="swatches"><span class="swatch" style="background:#171717" title="#171717"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#fafafa" title="#fafafa"></span><span class="swatch" style="background:#ebebeb" title="#ebebeb"></span><span class="swatch" style="background:#808080" title="#808080"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="vercel">Use This Design</button>
+        <a class="action action-outline" href="../design-md/vercel/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/vercel/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/vercel/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="voltagent voltagent ai &amp; machine learning ai agent framework. void-black canvas, emerald accent, terminal-native voltagent" data-slug="voltagent">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">voltagent</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/voltagent/preview.html" title="VoltAgent light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>VoltAgent</h2>
+        <p class="title">VoltAgent</p>
+        <p class="summary">AI agent framework. Void-black canvas, emerald accent, terminal-native</p>
+        <div class="swatches"><span class="swatch" style="background:#050507" title="#050507"></span><span class="swatch" style="background:#101010" title="#101010"></span><span class="swatch" style="background:#00d992" title="#00d992"></span><span class="swatch" style="background:#2fd6a1" title="#2fd6a1"></span><span class="swatch" style="background:#10b981" title="#10b981"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="voltagent">Use This Design</button>
+        <a class="action action-outline" href="../design-md/voltagent/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/voltagent/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/voltagent/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="warp warp developer tools &amp; platforms modern terminal. dark ide-like interface, block-based command ui warp" data-slug="warp">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">warp</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/warp/preview.html" title="Warp light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Warp</h2>
+        <p class="title">Warp</p>
+        <p class="summary">Modern terminal. Dark IDE-like interface, block-based command UI</p>
+        <div class="swatches"><span class="swatch" style="background:#0e0e0d" title="#0e0e0d"></span><span class="swatch" style="background:#161615" title="#161615"></span><span class="swatch" style="background:#faf9f6" title="#faf9f6"></span><span class="swatch" style="background:#afaeac" title="#afaeac"></span><span class="swatch" style="background:#868584" title="#868584"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="warp">Use This Design</button>
+        <a class="action action-outline" href="../design-md/warp/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/warp/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/warp/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Design &amp; Productivity" data-search="webflow webflow design &amp; productivity visual web builder. blue-accented, polished marketing site aesthetic webflow" data-slug="webflow">
+      <div class="card-top">
+        <span class="pill">Design &amp; Productivity</span>
+        <span class="slug">webflow</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/webflow/preview.html" title="Webflow light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Webflow</h2>
+        <p class="title">Webflow</p>
+        <p class="summary">Visual web builder. Blue-accented, polished marketing site aesthetic</p>
+        <div class="swatches"><span class="swatch" style="background:#fff" title="#fff"></span><span class="swatch" style="background:#080808" title="#080808"></span><span class="swatch" style="background:#146ef5" title="#146ef5"></span><span class="swatch" style="background:#3b89ff" title="#3b89ff"></span><span class="swatch" style="background:#7a3dff" title="#7a3dff"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="webflow">Use This Design</button>
+        <a class="action action-outline" href="../design-md/webflow/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/webflow/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/webflow/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Fintech &amp; Crypto" data-search="wise wise fintech &amp; crypto international money transfer. bright green accent, friendly and clear wise" data-slug="wise">
+      <div class="card-top">
+        <span class="pill">Fintech &amp; Crypto</span>
+        <span class="slug">wise</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/wise/preview.html" title="Wise light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Wise</h2>
+        <p class="title">Wise</p>
+        <p class="summary">International money transfer. Bright green accent, friendly and clear</p>
+        <div class="swatches"><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#0e0f0c" title="#0e0f0c"></span><span class="swatch" style="background:#9fe870" title="#9fe870"></span><span class="swatch" style="background:#163300" title="#163300"></span><span class="swatch" style="background:#e2f6d5" title="#e2f6d5"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="wise">Use This Design</button>
+        <a class="action action-outline" href="../design-md/wise/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/wise/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/wise/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="AI &amp; Machine Learning" data-search="xai x.ai ai &amp; machine learning elon musk&#x27;s ai lab. stark monochrome, futuristic minimalism xai" data-slug="x.ai">
+      <div class="card-top">
+        <span class="pill">AI &amp; Machine Learning</span>
+        <span class="slug">x.ai</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/x.ai/preview.html" title="xAI light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>xAI</h2>
+        <p class="title">xAI</p>
+        <p class="summary">Elon Musk&#x27;s AI lab. Stark monochrome, futuristic minimalism</p>
+        <div class="swatches"><span class="swatch" style="background:#f8f8f8" title="#f8f8f8"></span><span class="swatch" style="background:#ffffff" title="#ffffff"></span><span class="swatch" style="background:#1f2228" title="#1f2228"></span><span class="swatch" style="background:rgba(31, 34, 40, 0.7)" title="rgba(31, 34, 40, 0.7)"></span><span class="swatch" style="background:rgba(31, 34, 40, 0.5)" title="rgba(31, 34, 40, 0.5)"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="x.ai">Use This Design</button>
+        <a class="action action-outline" href="../design-md/x.ai/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/x.ai/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/x.ai/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+<article class="design-card" data-category="Developer Tools &amp; Platforms" data-search="zapier zapier developer tools &amp; platforms automation platform. warm orange, friendly illustration-driven zapier" data-slug="zapier">
+      <div class="card-top">
+        <span class="pill">Developer Tools &amp; Platforms</span>
+        <span class="slug">zapier</span>
+      </div>
+      <div class="mini-browser">
+        <div class="browser-chrome">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-frame">
+          <iframe loading="lazy" src="../design-md/zapier/preview.html" title="Zapier light preview"></iframe>
+        </div>
+      </div>
+      <div class="card-body">
+        <h2>Zapier</h2>
+        <p class="title">Zapier</p>
+        <p class="summary">Automation platform. Warm orange, friendly illustration-driven</p>
+        <div class="swatches"><span class="swatch" style="background:#201515" title="#201515"></span><span class="swatch" style="background:#fffefb" title="#fffefb"></span><span class="swatch" style="background:#fffdf9" title="#fffdf9"></span><span class="swatch" style="background:#36342e" title="#36342e"></span><span class="swatch" style="background:#939084" title="#939084"></span></div>
+      </div>
+      <div class="card-actions">
+        <button class="action action-primary" type="button" data-action="choose" data-slug="zapier">Use This Design</button>
+        <a class="action action-outline" href="../design-md/zapier/DESIGN.md" target="_blank" rel="noreferrer">Open DESIGN.md</a>
+        <a class="action action-secondary" href="../design-md/zapier/preview.html" target="_blank" rel="noreferrer">Light Preview</a>
+        <a class="action action-secondary" href="../design-md/zapier/preview-dark.html" target="_blank" rel="noreferrer">Dark Preview</a>
+      </div>
+    </article>
+    </section>
+    <div id="empty" class="empty">No designs matched the current filters. Try another keyword or reset to All.</div>
+  </div>
+
+  <script>
+    const RAW_DESIGN_DATA = [{"slug": "airbnb", "display_name": "Airbnb", "category": "Enterprise & Consumer", "summary": "Travel marketplace. Warm coral accent, photography-driven, rounded UI", "title": "Airbnb", "design_md": "../design-md/airbnb/DESIGN.md", "preview": "../design-md/airbnb/preview.html", "preview_dark": "../design-md/airbnb/preview-dark.html", "colors": ["#ffffff", "#222222", "#ff385c", "#e00b41", "#6a6a6a", "#929292"]}, {"slug": "airtable", "display_name": "Airtable", "category": "Design & Productivity", "summary": "Spreadsheet-database hybrid. Colorful, friendly, structured data aesthetic", "title": "Airtable", "design_md": "../design-md/airtable/DESIGN.md", "preview": "../design-md/airtable/preview.html", "preview_dark": "../design-md/airtable/preview-dark.html", "colors": ["#fff", "#181d26", "#1b61c9", "#333", "#e0e2e6", "#f8fafc"]}, {"slug": "apple", "display_name": "Apple", "category": "Enterprise & Consumer", "summary": "Consumer electronics. Premium white space, SF Pro, cinematic imagery", "title": "Apple", "design_md": "../design-md/apple/DESIGN.md", "preview": "../design-md/apple/preview.html", "preview_dark": "../design-md/apple/preview-dark.html", "colors": ["#1d1d1f", "#ffffff", "#000000", "#f5f5f7", "#0071e3", "#0066cc"]}, {"slug": "bmw", "display_name": "BMW", "category": "Enterprise & Consumer", "summary": "Luxury automotive. Dark premium surfaces, precise German engineering aesthetic", "title": "BMW", "design_md": "../design-md/bmw/DESIGN.md", "preview": "../design-md/bmw/preview.html", "preview_dark": "../design-md/bmw/preview-dark.html", "colors": ["#ffffff", "#262626", "#1c69d4", "#0653b6", "#757575", "#bbbbbb"]}, {"slug": "cal", "display_name": "Cal.com", "category": "Design & Productivity", "summary": "Open-source scheduling. Clean neutral UI, developer-oriented simplicity", "title": "Cal.com", "design_md": "../design-md/cal/DESIGN.md", "preview": "../design-md/cal/preview.html", "preview_dark": "../design-md/cal/preview-dark.html", "colors": ["#242424", "#111111", "#898989", "#ffffff", "#0099ff", "#3b82f6"]}, {"slug": "claude", "display_name": "Claude", "category": "AI & Machine Learning", "summary": "Anthropic's AI assistant. Warm terracotta accent, clean editorial layout", "title": "Claude (Anthropic)", "design_md": "../design-md/claude/DESIGN.md", "preview": "../design-md/claude/preview.html", "preview_dark": "../design-md/claude/preview-dark.html", "colors": ["#141413", "#c96442", "#d97757", "#b53333", "#3898ec", "#f5f4ed"]}, {"slug": "clay", "display_name": "Clay", "category": "Design & Productivity", "summary": "Creative agency. Organic shapes, soft gradients, art-directed layout", "title": "Clay", "design_md": "../design-md/clay/DESIGN.md", "preview": "../design-md/clay/preview.html", "preview_dark": "../design-md/clay/preview-dark.html", "colors": ["#faf9f7", "#000000", "#ffffff", "#dad4c8", "#eee9df", "#9f9b93"]}, {"slug": "clickhouse", "display_name": "ClickHouse", "category": "Infrastructure & Cloud", "summary": "Fast analytics database. Yellow-accented, technical documentation style", "title": "ClickHouse", "design_md": "../design-md/clickhouse/DESIGN.md", "preview": "../design-md/clickhouse/preview.html", "preview_dark": "../design-md/clickhouse/preview-dark.html", "colors": ["#faff69", "#166534", "#14572f", "#f4f692", "#4f5100", "#161600"]}, {"slug": "cohere", "display_name": "Cohere", "category": "AI & Machine Learning", "summary": "Enterprise AI platform. Vibrant gradients, data-rich dashboard aesthetic", "title": "Cohere", "design_md": "../design-md/cohere/DESIGN.md", "preview": "../design-md/cohere/preview.html", "preview_dark": "../design-md/cohere/preview-dark.html", "colors": ["#000000", "#212121", "#17171c", "#1863dc", "#9b60aa", "#ffffff"]}, {"slug": "coinbase", "display_name": "Coinbase", "category": "Fintech & Crypto", "summary": "Crypto exchange. Clean blue identity, trust-focused, institutional feel", "title": "Coinbase", "design_md": "../design-md/coinbase/DESIGN.md", "preview": "../design-md/coinbase/preview.html", "preview_dark": "../design-md/coinbase/preview-dark.html", "colors": ["#fff", "#0a0b0d", "#0052ff", "#578bfa", "#eef0f3", "#282b31"]}, {"slug": "composio", "display_name": "Composio", "category": "Infrastructure & Cloud", "summary": "Tool integration platform. Modern dark with colorful integration icons", "title": "Composio", "design_md": "../design-md/composio/DESIGN.md", "preview": "../design-md/composio/preview.html", "preview_dark": "../design-md/composio/preview-dark.html", "colors": ["#ffffff", "#0007cd", "#000000", "#0f0f0f", "#2c2c2c", "#444444"]}, {"slug": "cursor", "display_name": "Cursor", "category": "Developer Tools & Platforms", "summary": "AI-first code editor. Sleek dark interface, gradient accents", "title": "Cursor", "design_md": "../design-md/cursor/DESIGN.md", "preview": "../design-md/cursor/preview.html", "preview_dark": "../design-md/cursor/preview-dark.html", "colors": ["#26251e", "#f2f1ed", "#e6e5e0", "#f7f7f4", "#ebeae5", "#e1e0db"]}, {"slug": "elevenlabs", "display_name": "ElevenLabs", "category": "AI & Machine Learning", "summary": "AI voice platform. Dark cinematic UI, audio-waveform aesthetics", "title": "ElevenLabs", "design_md": "../design-md/elevenlabs/DESIGN.md", "preview": "../design-md/elevenlabs/preview.html", "preview_dark": "../design-md/elevenlabs/preview-dark.html", "colors": ["#ffffff", "#f5f5f5", "#000000", "#4e4e4e", "#777169", "#e5e5e5"]}, {"slug": "expo", "display_name": "Expo", "category": "Developer Tools & Platforms", "summary": "React Native platform. Dark theme, tight letter-spacing, code-centric", "title": "Expo", "design_md": "../design-md/expo/DESIGN.md", "preview": "../design-md/expo/preview.html", "preview_dark": "../design-md/expo/preview-dark.html", "colors": ["#000000", "#1c2024", "#0d74ce", "#476cff", "#47c2ff", "#8145b5"]}, {"slug": "figma", "display_name": "Figma", "category": "Design & Productivity", "summary": "Collaborative design tool. Vibrant multi-color, playful yet professional", "title": "Figma", "design_md": "../design-md/figma/DESIGN.md", "preview": "../design-md/figma/preview.html", "preview_dark": "../design-md/figma/preview-dark.html", "colors": ["#000000", "#ffffff", "#0acf83", "#a259ff", "#f24e1e", "#ff7262"]}, {"slug": "framer", "display_name": "Framer", "category": "Design & Productivity", "summary": "Website builder. Bold black and blue, motion-first, design-forward", "title": "Framer", "design_md": "../design-md/framer/DESIGN.md", "preview": "../design-md/framer/preview.html", "preview_dark": "../design-md/framer/preview-dark.html", "colors": ["#000000", "#ffffff", "#0099ff", "#a6a6a6", "#090909", "rgba(255, 255, 255, 0.1)"]}, {"slug": "hashicorp", "display_name": "HashiCorp", "category": "Infrastructure & Cloud", "summary": "Infrastructure automation. Enterprise-clean, black and white", "title": "HashiCorp", "design_md": "../design-md/hashicorp/DESIGN.md", "preview": "../design-md/hashicorp/preview.html", "preview_dark": "../design-md/hashicorp/preview-dark.html", "colors": ["#000000", "#15181e", "#0d0e12", "#f1f2f3", "#d5d7db", "#b2b6bd"]}, {"slug": "ibm", "display_name": "IBM", "category": "Enterprise & Consumer", "summary": "Enterprise technology. Carbon design system, structured blue palette", "title": "IBM", "design_md": "../design-md/ibm/DESIGN.md", "preview": "../design-md/ibm/preview.html", "preview_dark": "../design-md/ibm/preview-dark.html", "colors": ["#ffffff", "#f4f4f4", "#e8e8e8", "#e0e0e0", "#c6c6c6", "#8d8d8d"]}, {"slug": "intercom", "display_name": "Intercom", "category": "Design & Productivity", "summary": "Customer messaging. Friendly blue palette, conversational UI patterns", "title": "Intercom", "design_md": "../design-md/intercom/DESIGN.md", "preview": "../design-md/intercom/preview.html", "preview_dark": "../design-md/intercom/preview-dark.html", "colors": ["#faf9f6", "#111111", "#ffffff", "#ff5600", "#dedbd6", "#7b7b78"]}, {"slug": "kraken", "display_name": "Kraken", "category": "Fintech & Crypto", "summary": "Crypto trading platform. Purple-accented dark UI, data-dense dashboards", "title": "Kraken", "design_md": "../design-md/kraken/DESIGN.md", "preview": "../design-md/kraken/preview.html", "preview_dark": "../design-md/kraken/preview-dark.html", "colors": ["#fff", "#101114", "#7132f5", "#5741d8", "#686b82", "#9497a9"]}, {"slug": "linear.app", "display_name": "Linear", "category": "Developer Tools & Platforms", "summary": "Project management for engineers. Ultra-minimal, precise, purple accent", "title": "Linear", "design_md": "../design-md/linear.app/DESIGN.md", "preview": "../design-md/linear.app/preview.html", "preview_dark": "../design-md/linear.app/preview-dark.html", "colors": ["#f7f8f8", "#ffffff", "#f3f4f5", "#1a1a1e", "#3c3c43", "#62666d"]}, {"slug": "lovable", "display_name": "Lovable", "category": "Developer Tools & Platforms", "summary": "AI full-stack builder. Playful gradients, friendly dev aesthetic", "title": "Lovable", "design_md": "../design-md/lovable/DESIGN.md", "preview": "../design-md/lovable/preview.html", "preview_dark": "../design-md/lovable/preview-dark.html", "colors": ["#f7f4ed", "#1c1c1c", "#fcfbf8", "#eceae4", "#5f5f5d", "rgba(28,28,28,0.4)"]}, {"slug": "minimax", "display_name": "Minimax", "category": "AI & Machine Learning", "summary": "AI model provider. Bold dark interface with neon accents", "title": "MiniMax", "design_md": "../design-md/minimax/DESIGN.md", "preview": "../design-md/minimax/preview.html", "preview_dark": "../design-md/minimax/preview-dark.html", "colors": ["#1456f0", "#3daeff", "#ea5ec1", "#bfdbfe", "#60a5fa", "#3b82f6"]}, {"slug": "mintlify", "display_name": "Mintlify", "category": "Developer Tools & Platforms", "summary": "Documentation platform. Clean, green-accented, reading-optimized", "title": "Mintlify", "design_md": "../design-md/mintlify/DESIGN.md", "preview": "../design-md/mintlify/preview.html", "preview_dark": "../design-md/mintlify/preview-dark.html", "colors": ["#0d0d0d", "#ffffff", "#fafafa", "#f5f5f5", "#e5e5e5", "#888888"]}, {"slug": "miro", "display_name": "Miro", "category": "Design & Productivity", "summary": "Visual collaboration. Bright yellow accent, infinite canvas aesthetic", "title": "Miro", "design_md": "../design-md/miro/DESIGN.md", "preview": "../design-md/miro/preview.html", "preview_dark": "../design-md/miro/preview-dark.html", "colors": ["#fff", "#1c1c1e", "#5b76fe", "#2a41b6", "#00b473", "#ffc6c6"]}, {"slug": "mistral.ai", "display_name": "Mistral AI", "category": "AI & Machine Learning", "summary": "Open-weight LLM provider. French-engineered minimalism, purple-toned", "title": "Mistral AI", "design_md": "../design-md/mistral.ai/DESIGN.md", "preview": "../design-md/mistral.ai/preview.html", "preview_dark": "../design-md/mistral.ai/preview-dark.html", "colors": ["#fa520f", "#fb6424", "#ff8105", "#ff8a00", "#ffa110", "#ffb83e"]}, {"slug": "mongodb", "display_name": "MongoDB", "category": "Infrastructure & Cloud", "summary": "Document database. Green leaf branding, developer documentation focus", "title": "MongoDB", "design_md": "../design-md/mongodb/DESIGN.md", "preview": "../design-md/mongodb/preview.html", "preview_dark": "../design-md/mongodb/preview-dark.html", "colors": ["#001e2b", "#00ed64", "#00684a", "#006cfa", "#3860be", "#1c2d38"]}, {"slug": "notion", "display_name": "Notion", "category": "Design & Productivity", "summary": "All-in-one workspace. Warm minimalism, serif headings, soft surfaces", "title": "Notion", "design_md": "../design-md/notion/DESIGN.md", "preview": "../design-md/notion/preview.html", "preview_dark": "../design-md/notion/preview-dark.html", "colors": ["#000000", "#ffffff", "#f6f5f4", "#31302e", "#615d59", "#a39e98"]}, {"slug": "nvidia", "display_name": "NVIDIA", "category": "Enterprise & Consumer", "summary": "GPU computing. Green-black energy, technical power aesthetic", "title": "NVIDIA", "design_md": "../design-md/nvidia/DESIGN.md", "preview": "../design-md/nvidia/preview.html", "preview_dark": "../design-md/nvidia/preview-dark.html", "colors": ["#76b900", "#bff230", "#000000", "#ffffff", "#1a1a1a", "#a7a7a7"]}, {"slug": "ollama", "display_name": "Ollama", "category": "AI & Machine Learning", "summary": "Run LLMs locally. Terminal-first, monochrome simplicity", "title": "Ollama", "design_md": "../design-md/ollama/DESIGN.md", "preview": "../design-md/ollama/preview.html", "preview_dark": "../design-md/ollama/preview-dark.html", "colors": ["#000000", "#262626", "#090909", "#ffffff", "#fafafa", "#e5e5e5"]}, {"slug": "opencode.ai", "display_name": "OpenCode AI", "category": "AI & Machine Learning", "summary": "AI coding platform. Developer-centric dark theme", "title": "OpenCode", "design_md": "../design-md/opencode.ai/DESIGN.md", "preview": "../design-md/opencode.ai/preview.html", "preview_dark": "../design-md/opencode.ai/preview-dark.html", "colors": ["#201d1d", "#fdfcfc", "#9a9898", "#302c2c", "#646262", "#f1eeee"]}, {"slug": "pinterest", "display_name": "Pinterest", "category": "Design & Productivity", "summary": "Visual discovery platform. Red accent, masonry grid, image-first", "title": "Pinterest", "design_md": "../design-md/pinterest/DESIGN.md", "preview": "../design-md/pinterest/preview.html", "preview_dark": "../design-md/pinterest/preview-dark.html", "colors": ["#ffffff", "#211922", "#e60023", "#62625b", "#91918c", "#e5e5e0"]}, {"slug": "posthog", "display_name": "PostHog", "category": "Developer Tools & Platforms", "summary": "Product analytics. Playful hedgehog branding, developer-friendly dark UI", "title": "PostHog", "design_md": "../design-md/posthog/DESIGN.md", "preview": "../design-md/posthog/preview.html", "preview_dark": "../design-md/posthog/preview-dark.html", "colors": ["#4d4f46", "#23251d", "#F54E00", "#F7A501", "#b17816", "#3b82f6"]}, {"slug": "raycast", "display_name": "Raycast", "category": "Developer Tools & Platforms", "summary": "Productivity launcher. Sleek dark chrome, vibrant gradient accents", "title": "Raycast", "design_md": "../design-md/raycast/DESIGN.md", "preview": "../design-md/raycast/preview.html", "preview_dark": "../design-md/raycast/preview-dark.html", "colors": ["#07080a", "#101111", "#1b1c1e", "#ffffff", "#f9f9f9", "#cecece"]}, {"slug": "replicate", "display_name": "Replicate", "category": "AI & Machine Learning", "summary": "Run ML models via API. Clean white canvas, code-forward", "title": "Replicate", "design_md": "../design-md/replicate/DESIGN.md", "preview": "../design-md/replicate/preview.html", "preview_dark": "../design-md/replicate/preview-dark.html", "colors": ["#202020", "#ea2804", "#dd4425", "#2b9a66", "#24292e", "#ffffff"]}, {"slug": "resend", "display_name": "Resend", "category": "Developer Tools & Platforms", "summary": "Email API for developers. Minimal dark theme, monospace accents", "title": "Resend", "design_md": "../design-md/resend/DESIGN.md", "preview": "../design-md/resend/preview.html", "preview_dark": "../design-md/resend/preview-dark.html", "colors": ["#000000", "#f0f0f0", "#ffffff", "#a1a4a5", "#464a4d", "#5c5c5c"]}, {"slug": "revolut", "display_name": "Revolut", "category": "Fintech & Crypto", "summary": "Digital banking. Sleek dark interface, gradient cards, fintech precision", "title": "Revolut", "design_md": "../design-md/revolut/DESIGN.md", "preview": "../design-md/revolut/preview.html", "preview_dark": "../design-md/revolut/preview-dark.html", "colors": ["#ffffff", "#191c1f", "#f4f4f4", "#494fdf", "#4f55f1", "#e23b4a"]}, {"slug": "runwayml", "display_name": "RunwayML", "category": "AI & Machine Learning", "summary": "AI video generation. Cinematic dark UI, media-rich layout", "title": "Runway", "design_md": "../design-md/runwayml/DESIGN.md", "preview": "../design-md/runwayml/preview.html", "preview_dark": "../design-md/runwayml/preview-dark.html", "colors": ["#000000", "#030303", "#1a1a1a", "#ffffff", "#fefefe", "#e9ecf2"]}, {"slug": "sanity", "display_name": "Sanity", "category": "Infrastructure & Cloud", "summary": "Headless CMS. Red accent, content-first editorial layout", "title": "Sanity", "design_md": "../design-md/sanity/DESIGN.md", "preview": "../design-md/sanity/preview.html", "preview_dark": "../design-md/sanity/preview-dark.html", "colors": ["#f7f7f7", "#ffffff", "#f0f0f0", "#0b0b0b", "#212121", "#f36458"]}, {"slug": "sentry", "display_name": "Sentry", "category": "Developer Tools & Platforms", "summary": "Error monitoring. Dark dashboard, data-dense, pink-purple accent", "title": "Sentry", "design_md": "../design-md/sentry/DESIGN.md", "preview": "../design-md/sentry/preview.html", "preview_dark": "../design-md/sentry/preview-dark.html", "colors": ["#1f1633", "#150f23", "#362d59", "#6a5fc1", "#79628c", "#422082"]}, {"slug": "spacex", "display_name": "SpaceX", "category": "Enterprise & Consumer", "summary": "Space technology. Stark black and white, full-bleed imagery, futuristic", "title": "SpaceX", "design_md": "../design-md/spacex/DESIGN.md", "preview": "../design-md/spacex/preview.html", "preview_dark": "../design-md/spacex/preview-dark.html", "colors": ["#000000", "#f0f0fa", "#ff4444", "rgba(240,240,250,0.1)", "rgba(240,240,250,0.35)", "rgba(0,0,0,0.5)"]}, {"slug": "spotify", "display_name": "Spotify", "category": "Enterprise & Consumer", "summary": "Music streaming. Vibrant green on dark, bold type, album-art-driven", "title": "Spotify", "design_md": "../design-md/spotify/DESIGN.md", "preview": "../design-md/spotify/preview.html", "preview_dark": "../design-md/spotify/preview-dark.html", "colors": ["#121212", "#181818", "#1f1f1f", "#252525", "#1ed760", "#ffffff"]}, {"slug": "stripe", "display_name": "Stripe", "category": "Infrastructure & Cloud", "summary": "Payment infrastructure. Signature purple gradients, weight-300 elegance", "title": "Stripe", "design_md": "../design-md/stripe/DESIGN.md", "preview": "../design-md/stripe/preview.html", "preview_dark": "../design-md/stripe/preview-dark.html", "colors": ["#533afd", "#4434d4", "#2e2b8c", "#b9b9f9", "#665efd", "#061b31"]}, {"slug": "supabase", "display_name": "Supabase", "category": "Developer Tools & Platforms", "summary": "Open-source Firebase alternative. Dark emerald theme, code-first", "title": "Supabase", "design_md": "../design-md/supabase/DESIGN.md", "preview": "../design-md/supabase/preview.html", "preview_dark": "../design-md/supabase/preview-dark.html", "colors": ["#3ecf8e", "#00c573", "#0f0f0f", "#171717", "#242424", "#2e2e2e"]}, {"slug": "superhuman", "display_name": "Superhuman", "category": "Developer Tools & Platforms", "summary": "Fast email client. Premium dark UI, keyboard-first, purple glow", "title": "Superhuman", "design_md": "../design-md/superhuman/DESIGN.md", "preview": "../design-md/superhuman/preview.html", "preview_dark": "../design-md/superhuman/preview-dark.html", "colors": ["#1b1938", "#cbb7fb", "#292827", "#714cb6", "#ffffff", "#e9e5dd"]}, {"slug": "together.ai", "display_name": "Together AI", "category": "AI & Machine Learning", "summary": "Open-source AI infrastructure. Technical, blueprint-style design", "title": "Together AI", "design_md": "../design-md/together.ai/DESIGN.md", "preview": "../design-md/together.ai/preview.html", "preview_dark": "../design-md/together.ai/preview-dark.html", "colors": ["#ef2cc1", "#fc4c02", "#010120", "#bdbbff", "#00000066", "#ffffff"]}, {"slug": "uber", "display_name": "Uber", "category": "Enterprise & Consumer", "summary": "Mobility platform. Bold black and white, tight type, urban energy", "title": "Uber", "design_md": "../design-md/uber/DESIGN.md", "preview": "../design-md/uber/preview.html", "preview_dark": "../design-md/uber/preview-dark.html", "colors": ["#000000", "#ffffff", "#e2e2e2", "#f3f3f3", "#efefef", "#4b4b4b"]}, {"slug": "vercel", "display_name": "Vercel", "category": "Developer Tools & Platforms", "summary": "Frontend deployment platform. Black and white precision, Geist font", "title": "Vercel", "design_md": "../design-md/vercel/DESIGN.md", "preview": "../design-md/vercel/preview.html", "preview_dark": "../design-md/vercel/preview-dark.html", "colors": ["#171717", "#ffffff", "#fafafa", "#ebebeb", "#808080", "#666666"]}, {"slug": "voltagent", "display_name": "VoltAgent", "category": "AI & Machine Learning", "summary": "AI agent framework. Void-black canvas, emerald accent, terminal-native", "title": "VoltAgent", "design_md": "../design-md/voltagent/DESIGN.md", "preview": "../design-md/voltagent/preview.html", "preview_dark": "../design-md/voltagent/preview-dark.html", "colors": ["#050507", "#101010", "#00d992", "#2fd6a1", "#10b981", "#818cf8"]}, {"slug": "warp", "display_name": "Warp", "category": "Developer Tools & Platforms", "summary": "Modern terminal. Dark IDE-like interface, block-based command UI", "title": "Warp", "design_md": "../design-md/warp/DESIGN.md", "preview": "../design-md/warp/preview.html", "preview_dark": "../design-md/warp/preview-dark.html", "colors": ["#0e0e0d", "#161615", "#faf9f6", "#afaeac", "#868584", "#666469"]}, {"slug": "webflow", "display_name": "Webflow", "category": "Design & Productivity", "summary": "Visual web builder. Blue-accented, polished marketing site aesthetic", "title": "Webflow", "design_md": "../design-md/webflow/DESIGN.md", "preview": "../design-md/webflow/preview.html", "preview_dark": "../design-md/webflow/preview-dark.html", "colors": ["#fff", "#080808", "#146ef5", "#3b89ff", "#7a3dff", "#ed52cb"]}, {"slug": "wise", "display_name": "Wise", "category": "Fintech & Crypto", "summary": "International money transfer. Bright green accent, friendly and clear", "title": "Wise", "design_md": "../design-md/wise/DESIGN.md", "preview": "../design-md/wise/preview.html", "preview_dark": "../design-md/wise/preview-dark.html", "colors": ["#ffffff", "#0e0f0c", "#9fe870", "#163300", "#e2f6d5", "#868685"]}, {"slug": "x.ai", "display_name": "xAI", "category": "AI & Machine Learning", "summary": "Elon Musk's AI lab. Stark monochrome, futuristic minimalism", "title": "xAI", "design_md": "../design-md/x.ai/DESIGN.md", "preview": "../design-md/x.ai/preview.html", "preview_dark": "../design-md/x.ai/preview-dark.html", "colors": ["#f8f8f8", "#ffffff", "#1f2228", "rgba(31, 34, 40, 0.7)", "rgba(31, 34, 40, 0.5)", "rgba(31, 34, 40, 0.3)"]}, {"slug": "zapier", "display_name": "Zapier", "category": "Developer Tools & Platforms", "summary": "Automation platform. Warm orange, friendly illustration-driven", "title": "Zapier", "design_md": "../design-md/zapier/DESIGN.md", "preview": "../design-md/zapier/preview.html", "preview_dark": "../design-md/zapier/preview-dark.html", "colors": ["#201515", "#fffefb", "#fffdf9", "#36342e", "#939084", "#c5c0b1"]}];
+
+    function fileUrlToLocalPath(url) {
+      const decoded = decodeURIComponent(url.pathname);
+      if (/^\/[A-Za-z]:\//.test(decoded)) {
+        return decoded.slice(1).replaceAll("/", "\\");
+      }
+      return decoded;
+    }
+
+    function localPathFor(relativePath) {
+      const url = new URL(relativePath, window.location.href);
+      if (url.protocol === "file:") {
+        return fileUrlToLocalPath(url);
+      }
+      return url.href;
+    }
+
+    const SKILL_ROOT = localPathFor("../");
+    const DESIGN_DATA = RAW_DESIGN_DATA.map((entry) => ({
+      ...entry,
+      design_md_abs: localPathFor(entry.design_md),
+      preview_abs: localPathFor(entry.preview),
+      preview_dark_abs: entry.preview_dark ? localPathFor(entry.preview_dark) : null,
+    }));
+    const designMap = new Map(DESIGN_DATA.map((entry) => [entry.slug, entry]));
+
+    const searchInput = document.getElementById("search");
+    const resultLabel = document.getElementById("results");
+    const cards = Array.from(document.querySelectorAll(".design-card"));
+    const chips = Array.from(document.querySelectorAll(".filter-chip"));
+    const empty = document.getElementById("empty");
+    const chooseButtons = Array.from(document.querySelectorAll('[data-action="choose"]'));
+
+    const selectedPlaceholder = document.getElementById("selectedPlaceholder");
+    const selectedCard = document.getElementById("selectedCard");
+    const selectedName = document.getElementById("selectedName");
+    const selectedMeta = document.getElementById("selectedMeta");
+    const selectedCategory = document.getElementById("selectedCategory");
+    const selectedSummary = document.getElementById("selectedSummary");
+    const selectedSwatches = document.getElementById("selectedSwatches");
+    const selectedPath = document.getElementById("selectedPath");
+    const selectedDesignLink = document.getElementById("selectedDesignLink");
+    const selectedPreviewLink = document.getElementById("selectedPreviewLink");
+    const selectedDarkPreviewLink = document.getElementById("selectedDarkPreviewLink");
+
+    const taskType = document.getElementById("taskType");
+    const surfaceType = document.getElementById("surfaceType");
+    const outputMode = document.getElementById("outputMode");
+    const promptTone = document.getElementById("promptTone");
+    const briefInput = document.getElementById("briefInput");
+    const constraintsInput = document.getElementById("constraintsInput");
+    const notesInput = document.getElementById("notesInput");
+    const promptOutput = document.getElementById("promptOutput");
+    const copyPromptButton = document.getElementById("copyPromptButton");
+    const copyPathButton = document.getElementById("copyPathButton");
+    const resetBuilderButton = document.getElementById("resetBuilderButton");
+    const copyStatus = document.getElementById("copyStatus");
+    const agentSegments = Array.from(document.querySelectorAll(".segment"));
+
+    let activeCategory = "__all__";
+    let activeAgent = "codex";
+    let selectedSlug = null;
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function setStatus(message) {
+      copyStatus.textContent = message;
+    }
+
+    function selectedDesign() {
+      return selectedSlug ? designMap.get(selectedSlug) : null;
+    }
+
+    function placeholder(text, fallback) {
+      const value = text.trim();
+      return value ? value : fallback;
+    }
+
+    function promptLead(agent) {
+      if (agent === "codex") {
+        return [
+          "Use $awesome-design as the design-selection workflow for this frontend task.",
+          "The skill root is: " + SKILL_ROOT,
+        ];
+      }
+      if (agent === "claude") {
+        return [
+          "Use $awesome-design to guide the visual direction for this frontend task.",
+          "The skill root is: " + SKILL_ROOT,
+        ];
+      }
+      return [
+        "Use the selected DESIGN.md as the design system reference for this frontend task.",
+        "The local awesome-design library lives at: " + SKILL_ROOT,
+      ];
+    }
+
+    function buildPrompt() {
+      const design = selectedDesign();
+      if (!design) {
+        return "Select a design card first, then the prompt composer will generate a ready-to-send prompt here.";
+      }
+
+      const lines = [
+        ...promptLead(activeAgent),
+        "",
+        "Selected design:",
+        "- Design system: " + design.display_name,
+        "- Category: " + design.category,
+        "- DESIGN.md: " + design.design_md_abs,
+        "- Light preview: " + design.preview_abs,
+        design.preview_dark_abs ? "- Dark preview: " + design.preview_dark_abs : "- Dark preview: not available",
+        "",
+        "Task framing:",
+        "- Task type: " + taskType.value,
+        "- Surface: " + surfaceType.value,
+        "- Output mode: " + outputMode.value,
+        "- Styling intent: " + promptTone.value,
+        "",
+        "Execution requirements:",
+        "1. Read the DESIGN.md before making layout or styling decisions.",
+        "2. Carry over the selected system's typography, color roles, spacing, surfaces, buttons, cards, and visual rhythm.",
+        "3. Preserve the product brief and UX goals instead of copying the source site's content or information architecture blindly.",
+        "4. Keep the result responsive and production-credible.",
+        "5. If you deviate from the source design, keep the spirit intact and explain the tradeoff briefly.",
+        "",
+        "Product brief:",
+        placeholder(
+          briefInput.value,
+          "Describe the product, user, primary flow, and what the final page or screen must accomplish."
+        ),
+        "",
+        "Non-negotiables:",
+        placeholder(
+          constraintsInput.value,
+          "List the IA, conversion goals, accessibility rules, component constraints, existing brand limits, or technical boundaries that must not be broken."
+        ),
+        "",
+        "Extra notes:",
+        placeholder(
+          notesInput.value,
+          "Optional notes about emphasis, motion, dark mode preference, codebase context, or delivery expectations."
+        ),
+      ];
+
+      return lines.join("\n");
+    }
+
+    function renderSelectedState() {
+      const design = selectedDesign();
+      if (!design) {
+        selectedPlaceholder.style.display = "grid";
+        selectedCard.classList.remove("visible");
+        promptOutput.value = buildPrompt();
+        copyPromptButton.disabled = true;
+        copyPathButton.disabled = true;
+        setStatus("Choose a design to activate the composer.");
+        return;
+      }
+
+      selectedPlaceholder.style.display = "none";
+      selectedCard.classList.add("visible");
+      selectedName.textContent = design.display_name;
+      selectedMeta.textContent = design.title + " · " + design.slug;
+      selectedCategory.textContent = design.category;
+      selectedSummary.textContent = design.summary;
+      selectedPath.textContent = design.design_md_abs;
+      selectedDesignLink.href = design.design_md;
+      selectedPreviewLink.href = design.preview;
+      selectedDarkPreviewLink.href = design.preview_dark || "#";
+      selectedDarkPreviewLink.style.display = design.preview_dark ? "inline-flex" : "none";
+      selectedSwatches.innerHTML = design.colors
+        .slice(0, 6)
+        .map((color) => '<span class="swatch" style="background:' + escapeHtml(color) + '" title="' + escapeHtml(color) + '"></span>')
+        .join("");
+
+      promptOutput.value = buildPrompt();
+      copyPromptButton.disabled = false;
+      copyPathButton.disabled = false;
+      setStatus("Selected " + design.display_name + ". Adjust the brief fields and copy the prompt when ready.");
+    }
+
+    function updateCards() {
+      for (const card of cards) {
+        card.classList.toggle("selected", card.dataset.slug === selectedSlug);
+      }
+    }
+
+    function updateFilter() {
+      const query = searchInput.value.trim().toLowerCase();
+      let visible = 0;
+      for (const card of cards) {
+        const categoryMatch = activeCategory === "__all__" || card.dataset.category === activeCategory;
+        const searchMatch = !query || card.dataset.search.includes(query);
+        const show = categoryMatch && searchMatch;
+        card.style.display = show ? "" : "none";
+        if (show) visible += 1;
+      }
+      resultLabel.textContent = visible + " design" + (visible === 1 ? "" : "s");
+      empty.style.display = visible === 0 ? "block" : "none";
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (error) {
+        promptOutput.focus();
+        promptOutput.select();
+        return document.execCommand("copy");
+      }
+    }
+
+    function selectDesign(slug) {
+      selectedSlug = slug;
+      updateCards();
+      renderSelectedState();
+      if (window.innerWidth < 980) {
+        document.getElementById("studio").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    for (const button of chooseButtons) {
+      button.addEventListener("click", () => selectDesign(button.dataset.slug));
+    }
+
+    for (const chip of chips) {
+      chip.addEventListener("click", () => {
+        activeCategory = chip.dataset.category;
+        for (const other of chips) {
+          other.classList.remove("active");
+        }
+        chip.classList.add("active");
+        updateFilter();
+      });
+    }
+
+    for (const segment of agentSegments) {
+      segment.addEventListener("click", () => {
+        activeAgent = segment.dataset.agent;
+        for (const other of agentSegments) {
+          other.classList.remove("active");
+        }
+        segment.classList.add("active");
+        promptOutput.value = buildPrompt();
+        const design = selectedDesign();
+        if (design) {
+          setStatus("Prompt updated for " + segment.textContent + ".");
+        }
+      });
+    }
+
+    for (const field of [taskType, surfaceType, outputMode, promptTone, briefInput, constraintsInput, notesInput]) {
+      field.addEventListener("input", () => {
+        promptOutput.value = buildPrompt();
+      });
+      field.addEventListener("change", () => {
+        promptOutput.value = buildPrompt();
+      });
+    }
+
+    copyPromptButton.addEventListener("click", async () => {
+      const design = selectedDesign();
+      if (!design) {
+        setStatus("Select a design before copying a prompt.");
+        return;
+      }
+      const ok = await copyText(promptOutput.value);
+      const agentLabel = activeAgent === "claude" ? "Claude Code" : (activeAgent === "generic" ? "generic agent" : "Codex");
+      setStatus(ok ? ("Copied a " + agentLabel + " prompt for " + design.display_name + ".") : "Copy failed. The prompt is selected; copy it manually.");
+    });
+
+    copyPathButton.addEventListener("click", async () => {
+      const design = selectedDesign();
+      if (!design) {
+        setStatus("Select a design before copying the DESIGN.md path.");
+        return;
+      }
+      const ok = await copyText(design.design_md_abs);
+      setStatus(ok ? ("Copied DESIGN.md path for " + design.display_name + ".") : "Copy failed. The path is visible in the selected design panel.");
+    });
+
+    resetBuilderButton.addEventListener("click", () => {
+      briefInput.value = "";
+      constraintsInput.value = "";
+      notesInput.value = "";
+      taskType.value = "landing page";
+      surfaceType.value = "responsive desktop and mobile";
+      outputMode.value = "build new UI";
+      promptTone.value = "faithful";
+      promptOutput.value = buildPrompt();
+      setStatus("Brief fields reset. The selected design stayed in place.");
+    });
+
+    searchInput.addEventListener("input", updateFilter);
+
+    updateFilter();
+    renderSelectedState();
+  </script>
+</body>
+</html>

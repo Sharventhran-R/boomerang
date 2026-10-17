@@ -1,0 +1,974 @@
+[
+  {
+    "slug": "airbnb",
+    "display_name": "Airbnb",
+    "category": "Enterprise & Consumer",
+    "summary": "Travel marketplace. Warm coral accent, photography-driven, rounded UI",
+    "title": "Airbnb",
+    "design_md": "../design-md/airbnb/DESIGN.md",
+    "preview": "../design-md/airbnb/preview.html",
+    "preview_dark": "../design-md/airbnb/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#222222",
+      "#ff385c",
+      "#e00b41",
+      "#6a6a6a",
+      "#929292"
+    ]
+  },
+  {
+    "slug": "airtable",
+    "display_name": "Airtable",
+    "category": "Design & Productivity",
+    "summary": "Spreadsheet-database hybrid. Colorful, friendly, structured data aesthetic",
+    "title": "Airtable",
+    "design_md": "../design-md/airtable/DESIGN.md",
+    "preview": "../design-md/airtable/preview.html",
+    "preview_dark": "../design-md/airtable/preview-dark.html",
+    "colors": [
+      "#fff",
+      "#181d26",
+      "#1b61c9",
+      "#333",
+      "#e0e2e6",
+      "#f8fafc"
+    ]
+  },
+  {
+    "slug": "apple",
+    "display_name": "Apple",
+    "category": "Enterprise & Consumer",
+    "summary": "Consumer electronics. Premium white space, SF Pro, cinematic imagery",
+    "title": "Apple",
+    "design_md": "../design-md/apple/DESIGN.md",
+    "preview": "../design-md/apple/preview.html",
+    "preview_dark": "../design-md/apple/preview-dark.html",
+    "colors": [
+      "#1d1d1f",
+      "#ffffff",
+      "#000000",
+      "#f5f5f7",
+      "#0071e3",
+      "#0066cc"
+    ]
+  },
+  {
+    "slug": "bmw",
+    "display_name": "BMW",
+    "category": "Enterprise & Consumer",
+    "summary": "Luxury automotive. Dark premium surfaces, precise German engineering aesthetic",
+    "title": "BMW",
+    "design_md": "../design-md/bmw/DESIGN.md",
+    "preview": "../design-md/bmw/preview.html",
+    "preview_dark": "../design-md/bmw/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#262626",
+      "#1c69d4",
+      "#0653b6",
+      "#757575",
+      "#bbbbbb"
+    ]
+  },
+  {
+    "slug": "cal",
+    "display_name": "Cal.com",
+    "category": "Design & Productivity",
+    "summary": "Open-source scheduling. Clean neutral UI, developer-oriented simplicity",
+    "title": "Cal.com",
+    "design_md": "../design-md/cal/DESIGN.md",
+    "preview": "../design-md/cal/preview.html",
+    "preview_dark": "../design-md/cal/preview-dark.html",
+    "colors": [
+      "#242424",
+      "#111111",
+      "#898989",
+      "#ffffff",
+      "#0099ff",
+      "#3b82f6"
+    ]
+  },
+  {
+    "slug": "claude",
+    "display_name": "Claude",
+    "category": "AI & Machine Learning",
+    "summary": "Anthropic's AI assistant. Warm terracotta accent, clean editorial layout",
+    "title": "Claude (Anthropic)",
+    "design_md": "../design-md/claude/DESIGN.md",
+    "preview": "../design-md/claude/preview.html",
+    "preview_dark": "../design-md/claude/preview-dark.html",
+    "colors": [
+      "#141413",
+      "#c96442",
+      "#d97757",
+      "#b53333",
+      "#3898ec",
+      "#f5f4ed"
+    ]
+  },
+  {
+    "slug": "clay",
+    "display_name": "Clay",
+    "category": "Design & Productivity",
+    "summary": "Creative agency. Organic shapes, soft gradients, art-directed layout",
+    "title": "Clay",
+    "design_md": "../design-md/clay/DESIGN.md",
+    "preview": "../design-md/clay/preview.html",
+    "preview_dark": "../design-md/clay/preview-dark.html",
+    "colors": [
+      "#faf9f7",
+      "#000000",
+      "#ffffff",
+      "#dad4c8",
+      "#eee9df",
+      "#9f9b93"
+    ]
+  },
+  {
+    "slug": "clickhouse",
+    "display_name": "ClickHouse",
+    "category": "Infrastructure & Cloud",
+    "summary": "Fast analytics database. Yellow-accented, technical documentation style",
+    "title": "ClickHouse",
+    "design_md": "../design-md/clickhouse/DESIGN.md",
+    "preview": "../design-md/clickhouse/preview.html",
+    "preview_dark": "../design-md/clickhouse/preview-dark.html",
+    "colors": [
+      "#faff69",
+      "#166534",
+      "#14572f",
+      "#f4f692",
+      "#4f5100",
+      "#161600"
+    ]
+  },
+  {
+    "slug": "cohere",
+    "display_name": "Cohere",
+    "category": "AI & Machine Learning",
+    "summary": "Enterprise AI platform. Vibrant gradients, data-rich dashboard aesthetic",
+    "title": "Cohere",
+    "design_md": "../design-md/cohere/DESIGN.md",
+    "preview": "../design-md/cohere/preview.html",
+    "preview_dark": "../design-md/cohere/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#212121",
+      "#17171c",
+      "#1863dc",
+      "#9b60aa",
+      "#ffffff"
+    ]
+  },
+  {
+    "slug": "coinbase",
+    "display_name": "Coinbase",
+    "category": "Fintech & Crypto",
+    "summary": "Crypto exchange. Clean blue identity, trust-focused, institutional feel",
+    "title": "Coinbase",
+    "design_md": "../design-md/coinbase/DESIGN.md",
+    "preview": "../design-md/coinbase/preview.html",
+    "preview_dark": "../design-md/coinbase/preview-dark.html",
+    "colors": [
+      "#fff",
+      "#0a0b0d",
+      "#0052ff",
+      "#578bfa",
+      "#eef0f3",
+      "#282b31"
+    ]
+  },
+  {
+    "slug": "composio",
+    "display_name": "Composio",
+    "category": "Infrastructure & Cloud",
+    "summary": "Tool integration platform. Modern dark with colorful integration icons",
+    "title": "Composio",
+    "design_md": "../design-md/composio/DESIGN.md",
+    "preview": "../design-md/composio/preview.html",
+    "preview_dark": "../design-md/composio/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#0007cd",
+      "#000000",
+      "#0f0f0f",
+      "#2c2c2c",
+      "#444444"
+    ]
+  },
+  {
+    "slug": "cursor",
+    "display_name": "Cursor",
+    "category": "Developer Tools & Platforms",
+    "summary": "AI-first code editor. Sleek dark interface, gradient accents",
+    "title": "Cursor",
+    "design_md": "../design-md/cursor/DESIGN.md",
+    "preview": "../design-md/cursor/preview.html",
+    "preview_dark": "../design-md/cursor/preview-dark.html",
+    "colors": [
+      "#26251e",
+      "#f2f1ed",
+      "#e6e5e0",
+      "#f7f7f4",
+      "#ebeae5",
+      "#e1e0db"
+    ]
+  },
+  {
+    "slug": "elevenlabs",
+    "display_name": "ElevenLabs",
+    "category": "AI & Machine Learning",
+    "summary": "AI voice platform. Dark cinematic UI, audio-waveform aesthetics",
+    "title": "ElevenLabs",
+    "design_md": "../design-md/elevenlabs/DESIGN.md",
+    "preview": "../design-md/elevenlabs/preview.html",
+    "preview_dark": "../design-md/elevenlabs/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#f5f5f5",
+      "#000000",
+      "#4e4e4e",
+      "#777169",
+      "#e5e5e5"
+    ]
+  },
+  {
+    "slug": "expo",
+    "display_name": "Expo",
+    "category": "Developer Tools & Platforms",
+    "summary": "React Native platform. Dark theme, tight letter-spacing, code-centric",
+    "title": "Expo",
+    "design_md": "../design-md/expo/DESIGN.md",
+    "preview": "../design-md/expo/preview.html",
+    "preview_dark": "../design-md/expo/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#1c2024",
+      "#0d74ce",
+      "#476cff",
+      "#47c2ff",
+      "#8145b5"
+    ]
+  },
+  {
+    "slug": "figma",
+    "display_name": "Figma",
+    "category": "Design & Productivity",
+    "summary": "Collaborative design tool. Vibrant multi-color, playful yet professional",
+    "title": "Figma",
+    "design_md": "../design-md/figma/DESIGN.md",
+    "preview": "../design-md/figma/preview.html",
+    "preview_dark": "../design-md/figma/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#ffffff",
+      "#0acf83",
+      "#a259ff",
+      "#f24e1e",
+      "#ff7262"
+    ]
+  },
+  {
+    "slug": "framer",
+    "display_name": "Framer",
+    "category": "Design & Productivity",
+    "summary": "Website builder. Bold black and blue, motion-first, design-forward",
+    "title": "Framer",
+    "design_md": "../design-md/framer/DESIGN.md",
+    "preview": "../design-md/framer/preview.html",
+    "preview_dark": "../design-md/framer/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#ffffff",
+      "#0099ff",
+      "#a6a6a6",
+      "#090909",
+      "rgba(255, 255, 255, 0.1)"
+    ]
+  },
+  {
+    "slug": "hashicorp",
+    "display_name": "HashiCorp",
+    "category": "Infrastructure & Cloud",
+    "summary": "Infrastructure automation. Enterprise-clean, black and white",
+    "title": "HashiCorp",
+    "design_md": "../design-md/hashicorp/DESIGN.md",
+    "preview": "../design-md/hashicorp/preview.html",
+    "preview_dark": "../design-md/hashicorp/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#15181e",
+      "#0d0e12",
+      "#f1f2f3",
+      "#d5d7db",
+      "#b2b6bd"
+    ]
+  },
+  {
+    "slug": "ibm",
+    "display_name": "IBM",
+    "category": "Enterprise & Consumer",
+    "summary": "Enterprise technology. Carbon design system, structured blue palette",
+    "title": "IBM",
+    "design_md": "../design-md/ibm/DESIGN.md",
+    "preview": "../design-md/ibm/preview.html",
+    "preview_dark": "../design-md/ibm/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#f4f4f4",
+      "#e8e8e8",
+      "#e0e0e0",
+      "#c6c6c6",
+      "#8d8d8d"
+    ]
+  },
+  {
+    "slug": "intercom",
+    "display_name": "Intercom",
+    "category": "Design & Productivity",
+    "summary": "Customer messaging. Friendly blue palette, conversational UI patterns",
+    "title": "Intercom",
+    "design_md": "../design-md/intercom/DESIGN.md",
+    "preview": "../design-md/intercom/preview.html",
+    "preview_dark": "../design-md/intercom/preview-dark.html",
+    "colors": [
+      "#faf9f6",
+      "#111111",
+      "#ffffff",
+      "#ff5600",
+      "#dedbd6",
+      "#7b7b78"
+    ]
+  },
+  {
+    "slug": "kraken",
+    "display_name": "Kraken",
+    "category": "Fintech & Crypto",
+    "summary": "Crypto trading platform. Purple-accented dark UI, data-dense dashboards",
+    "title": "Kraken",
+    "design_md": "../design-md/kraken/DESIGN.md",
+    "preview": "../design-md/kraken/preview.html",
+    "preview_dark": "../design-md/kraken/preview-dark.html",
+    "colors": [
+      "#fff",
+      "#101114",
+      "#7132f5",
+      "#5741d8",
+      "#686b82",
+      "#9497a9"
+    ]
+  },
+  {
+    "slug": "linear.app",
+    "display_name": "Linear",
+    "category": "Developer Tools & Platforms",
+    "summary": "Project management for engineers. Ultra-minimal, precise, purple accent",
+    "title": "Linear",
+    "design_md": "../design-md/linear.app/DESIGN.md",
+    "preview": "../design-md/linear.app/preview.html",
+    "preview_dark": "../design-md/linear.app/preview-dark.html",
+    "colors": [
+      "#f7f8f8",
+      "#ffffff",
+      "#f3f4f5",
+      "#1a1a1e",
+      "#3c3c43",
+      "#62666d"
+    ]
+  },
+  {
+    "slug": "lovable",
+    "display_name": "Lovable",
+    "category": "Developer Tools & Platforms",
+    "summary": "AI full-stack builder. Playful gradients, friendly dev aesthetic",
+    "title": "Lovable",
+    "design_md": "../design-md/lovable/DESIGN.md",
+    "preview": "../design-md/lovable/preview.html",
+    "preview_dark": "../design-md/lovable/preview-dark.html",
+    "colors": [
+      "#f7f4ed",
+      "#1c1c1c",
+      "#fcfbf8",
+      "#eceae4",
+      "#5f5f5d",
+      "rgba(28,28,28,0.4)"
+    ]
+  },
+  {
+    "slug": "minimax",
+    "display_name": "Minimax",
+    "category": "AI & Machine Learning",
+    "summary": "AI model provider. Bold dark interface with neon accents",
+    "title": "MiniMax",
+    "design_md": "../design-md/minimax/DESIGN.md",
+    "preview": "../design-md/minimax/preview.html",
+    "preview_dark": "../design-md/minimax/preview-dark.html",
+    "colors": [
+      "#1456f0",
+      "#3daeff",
+      "#ea5ec1",
+      "#bfdbfe",
+      "#60a5fa",
+      "#3b82f6"
+    ]
+  },
+  {
+    "slug": "mintlify",
+    "display_name": "Mintlify",
+    "category": "Developer Tools & Platforms",
+    "summary": "Documentation platform. Clean, green-accented, reading-optimized",
+    "title": "Mintlify",
+    "design_md": "../design-md/mintlify/DESIGN.md",
+    "preview": "../design-md/mintlify/preview.html",
+    "preview_dark": "../design-md/mintlify/preview-dark.html",
+    "colors": [
+      "#0d0d0d",
+      "#ffffff",
+      "#fafafa",
+      "#f5f5f5",
+      "#e5e5e5",
+      "#888888"
+    ]
+  },
+  {
+    "slug": "miro",
+    "display_name": "Miro",
+    "category": "Design & Productivity",
+    "summary": "Visual collaboration. Bright yellow accent, infinite canvas aesthetic",
+    "title": "Miro",
+    "design_md": "../design-md/miro/DESIGN.md",
+    "preview": "../design-md/miro/preview.html",
+    "preview_dark": "../design-md/miro/preview-dark.html",
+    "colors": [
+      "#fff",
+      "#1c1c1e",
+      "#5b76fe",
+      "#2a41b6",
+      "#00b473",
+      "#ffc6c6"
+    ]
+  },
+  {
+    "slug": "mistral.ai",
+    "display_name": "Mistral AI",
+    "category": "AI & Machine Learning",
+    "summary": "Open-weight LLM provider. French-engineered minimalism, purple-toned",
+    "title": "Mistral AI",
+    "design_md": "../design-md/mistral.ai/DESIGN.md",
+    "preview": "../design-md/mistral.ai/preview.html",
+    "preview_dark": "../design-md/mistral.ai/preview-dark.html",
+    "colors": [
+      "#fa520f",
+      "#fb6424",
+      "#ff8105",
+      "#ff8a00",
+      "#ffa110",
+      "#ffb83e"
+    ]
+  },
+  {
+    "slug": "mongodb",
+    "display_name": "MongoDB",
+    "category": "Infrastructure & Cloud",
+    "summary": "Document database. Green leaf branding, developer documentation focus",
+    "title": "MongoDB",
+    "design_md": "../design-md/mongodb/DESIGN.md",
+    "preview": "../design-md/mongodb/preview.html",
+    "preview_dark": "../design-md/mongodb/preview-dark.html",
+    "colors": [
+      "#001e2b",
+      "#00ed64",
+      "#00684a",
+      "#006cfa",
+      "#3860be",
+      "#1c2d38"
+    ]
+  },
+  {
+    "slug": "notion",
+    "display_name": "Notion",
+    "category": "Design & Productivity",
+    "summary": "All-in-one workspace. Warm minimalism, serif headings, soft surfaces",
+    "title": "Notion",
+    "design_md": "../design-md/notion/DESIGN.md",
+    "preview": "../design-md/notion/preview.html",
+    "preview_dark": "../design-md/notion/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#ffffff",
+      "#f6f5f4",
+      "#31302e",
+      "#615d59",
+      "#a39e98"
+    ]
+  },
+  {
+    "slug": "nvidia",
+    "display_name": "NVIDIA",
+    "category": "Enterprise & Consumer",
+    "summary": "GPU computing. Green-black energy, technical power aesthetic",
+    "title": "NVIDIA",
+    "design_md": "../design-md/nvidia/DESIGN.md",
+    "preview": "../design-md/nvidia/preview.html",
+    "preview_dark": "../design-md/nvidia/preview-dark.html",
+    "colors": [
+      "#76b900",
+      "#bff230",
+      "#000000",
+      "#ffffff",
+      "#1a1a1a",
+      "#a7a7a7"
+    ]
+  },
+  {
+    "slug": "ollama",
+    "display_name": "Ollama",
+    "category": "AI & Machine Learning",
+    "summary": "Run LLMs locally. Terminal-first, monochrome simplicity",
+    "title": "Ollama",
+    "design_md": "../design-md/ollama/DESIGN.md",
+    "preview": "../design-md/ollama/preview.html",
+    "preview_dark": "../design-md/ollama/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#262626",
+      "#090909",
+      "#ffffff",
+      "#fafafa",
+      "#e5e5e5"
+    ]
+  },
+  {
+    "slug": "opencode.ai",
+    "display_name": "OpenCode AI",
+    "category": "AI & Machine Learning",
+    "summary": "AI coding platform. Developer-centric dark theme",
+    "title": "OpenCode",
+    "design_md": "../design-md/opencode.ai/DESIGN.md",
+    "preview": "../design-md/opencode.ai/preview.html",
+    "preview_dark": "../design-md/opencode.ai/preview-dark.html",
+    "colors": [
+      "#201d1d",
+      "#fdfcfc",
+      "#9a9898",
+      "#302c2c",
+      "#646262",
+      "#f1eeee"
+    ]
+  },
+  {
+    "slug": "pinterest",
+    "display_name": "Pinterest",
+    "category": "Design & Productivity",
+    "summary": "Visual discovery platform. Red accent, masonry grid, image-first",
+    "title": "Pinterest",
+    "design_md": "../design-md/pinterest/DESIGN.md",
+    "preview": "../design-md/pinterest/preview.html",
+    "preview_dark": "../design-md/pinterest/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#211922",
+      "#e60023",
+      "#62625b",
+      "#91918c",
+      "#e5e5e0"
+    ]
+  },
+  {
+    "slug": "posthog",
+    "display_name": "PostHog",
+    "category": "Developer Tools & Platforms",
+    "summary": "Product analytics. Playful hedgehog branding, developer-friendly dark UI",
+    "title": "PostHog",
+    "design_md": "../design-md/posthog/DESIGN.md",
+    "preview": "../design-md/posthog/preview.html",
+    "preview_dark": "../design-md/posthog/preview-dark.html",
+    "colors": [
+      "#4d4f46",
+      "#23251d",
+      "#F54E00",
+      "#F7A501",
+      "#b17816",
+      "#3b82f6"
+    ]
+  },
+  {
+    "slug": "raycast",
+    "display_name": "Raycast",
+    "category": "Developer Tools & Platforms",
+    "summary": "Productivity launcher. Sleek dark chrome, vibrant gradient accents",
+    "title": "Raycast",
+    "design_md": "../design-md/raycast/DESIGN.md",
+    "preview": "../design-md/raycast/preview.html",
+    "preview_dark": "../design-md/raycast/preview-dark.html",
+    "colors": [
+      "#07080a",
+      "#101111",
+      "#1b1c1e",
+      "#ffffff",
+      "#f9f9f9",
+      "#cecece"
+    ]
+  },
+  {
+    "slug": "replicate",
+    "display_name": "Replicate",
+    "category": "AI & Machine Learning",
+    "summary": "Run ML models via API. Clean white canvas, code-forward",
+    "title": "Replicate",
+    "design_md": "../design-md/replicate/DESIGN.md",
+    "preview": "../design-md/replicate/preview.html",
+    "preview_dark": "../design-md/replicate/preview-dark.html",
+    "colors": [
+      "#202020",
+      "#ea2804",
+      "#dd4425",
+      "#2b9a66",
+      "#24292e",
+      "#ffffff"
+    ]
+  },
+  {
+    "slug": "resend",
+    "display_name": "Resend",
+    "category": "Developer Tools & Platforms",
+    "summary": "Email API for developers. Minimal dark theme, monospace accents",
+    "title": "Resend",
+    "design_md": "../design-md/resend/DESIGN.md",
+    "preview": "../design-md/resend/preview.html",
+    "preview_dark": "../design-md/resend/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#f0f0f0",
+      "#ffffff",
+      "#a1a4a5",
+      "#464a4d",
+      "#5c5c5c"
+    ]
+  },
+  {
+    "slug": "revolut",
+    "display_name": "Revolut",
+    "category": "Fintech & Crypto",
+    "summary": "Digital banking. Sleek dark interface, gradient cards, fintech precision",
+    "title": "Revolut",
+    "design_md": "../design-md/revolut/DESIGN.md",
+    "preview": "../design-md/revolut/preview.html",
+    "preview_dark": "../design-md/revolut/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#191c1f",
+      "#f4f4f4",
+      "#494fdf",
+      "#4f55f1",
+      "#e23b4a"
+    ]
+  },
+  {
+    "slug": "runwayml",
+    "display_name": "RunwayML",
+    "category": "AI & Machine Learning",
+    "summary": "AI video generation. Cinematic dark UI, media-rich layout",
+    "title": "Runway",
+    "design_md": "../design-md/runwayml/DESIGN.md",
+    "preview": "../design-md/runwayml/preview.html",
+    "preview_dark": "../design-md/runwayml/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#030303",
+      "#1a1a1a",
+      "#ffffff",
+      "#fefefe",
+      "#e9ecf2"
+    ]
+  },
+  {
+    "slug": "sanity",
+    "display_name": "Sanity",
+    "category": "Infrastructure & Cloud",
+    "summary": "Headless CMS. Red accent, content-first editorial layout",
+    "title": "Sanity",
+    "design_md": "../design-md/sanity/DESIGN.md",
+    "preview": "../design-md/sanity/preview.html",
+    "preview_dark": "../design-md/sanity/preview-dark.html",
+    "colors": [
+      "#f7f7f7",
+      "#ffffff",
+      "#f0f0f0",
+      "#0b0b0b",
+      "#212121",
+      "#f36458"
+    ]
+  },
+  {
+    "slug": "sentry",
+    "display_name": "Sentry",
+    "category": "Developer Tools & Platforms",
+    "summary": "Error monitoring. Dark dashboard, data-dense, pink-purple accent",
+    "title": "Sentry",
+    "design_md": "../design-md/sentry/DESIGN.md",
+    "preview": "../design-md/sentry/preview.html",
+    "preview_dark": "../design-md/sentry/preview-dark.html",
+    "colors": [
+      "#1f1633",
+      "#150f23",
+      "#362d59",
+      "#6a5fc1",
+      "#79628c",
+      "#422082"
+    ]
+  },
+  {
+    "slug": "spacex",
+    "display_name": "SpaceX",
+    "category": "Enterprise & Consumer",
+    "summary": "Space technology. Stark black and white, full-bleed imagery, futuristic",
+    "title": "SpaceX",
+    "design_md": "../design-md/spacex/DESIGN.md",
+    "preview": "../design-md/spacex/preview.html",
+    "preview_dark": "../design-md/spacex/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#f0f0fa",
+      "#ff4444",
+      "rgba(240,240,250,0.1)",
+      "rgba(240,240,250,0.35)",
+      "rgba(0,0,0,0.5)"
+    ]
+  },
+  {
+    "slug": "spotify",
+    "display_name": "Spotify",
+    "category": "Enterprise & Consumer",
+    "summary": "Music streaming. Vibrant green on dark, bold type, album-art-driven",
+    "title": "Spotify",
+    "design_md": "../design-md/spotify/DESIGN.md",
+    "preview": "../design-md/spotify/preview.html",
+    "preview_dark": "../design-md/spotify/preview-dark.html",
+    "colors": [
+      "#121212",
+      "#181818",
+      "#1f1f1f",
+      "#252525",
+      "#1ed760",
+      "#ffffff"
+    ]
+  },
+  {
+    "slug": "stripe",
+    "display_name": "Stripe",
+    "category": "Infrastructure & Cloud",
+    "summary": "Payment infrastructure. Signature purple gradients, weight-300 elegance",
+    "title": "Stripe",
+    "design_md": "../design-md/stripe/DESIGN.md",
+    "preview": "../design-md/stripe/preview.html",
+    "preview_dark": "../design-md/stripe/preview-dark.html",
+    "colors": [
+      "#533afd",
+      "#4434d4",
+      "#2e2b8c",
+      "#b9b9f9",
+      "#665efd",
+      "#061b31"
+    ]
+  },
+  {
+    "slug": "supabase",
+    "display_name": "Supabase",
+    "category": "Developer Tools & Platforms",
+    "summary": "Open-source Firebase alternative. Dark emerald theme, code-first",
+    "title": "Supabase",
+    "design_md": "../design-md/supabase/DESIGN.md",
+    "preview": "../design-md/supabase/preview.html",
+    "preview_dark": "../design-md/supabase/preview-dark.html",
+    "colors": [
+      "#3ecf8e",
+      "#00c573",
+      "#0f0f0f",
+      "#171717",
+      "#242424",
+      "#2e2e2e"
+    ]
+  },
+  {
+    "slug": "superhuman",
+    "display_name": "Superhuman",
+    "category": "Developer Tools & Platforms",
+    "summary": "Fast email client. Premium dark UI, keyboard-first, purple glow",
+    "title": "Superhuman",
+    "design_md": "../design-md/superhuman/DESIGN.md",
+    "preview": "../design-md/superhuman/preview.html",
+    "preview_dark": "../design-md/superhuman/preview-dark.html",
+    "colors": [
+      "#1b1938",
+      "#cbb7fb",
+      "#292827",
+      "#714cb6",
+      "#ffffff",
+      "#e9e5dd"
+    ]
+  },
+  {
+    "slug": "together.ai",
+    "display_name": "Together AI",
+    "category": "AI & Machine Learning",
+    "summary": "Open-source AI infrastructure. Technical, blueprint-style design",
+    "title": "Together AI",
+    "design_md": "../design-md/together.ai/DESIGN.md",
+    "preview": "../design-md/together.ai/preview.html",
+    "preview_dark": "../design-md/together.ai/preview-dark.html",
+    "colors": [
+      "#ef2cc1",
+      "#fc4c02",
+      "#010120",
+      "#bdbbff",
+      "#00000066",
+      "#ffffff"
+    ]
+  },
+  {
+    "slug": "uber",
+    "display_name": "Uber",
+    "category": "Enterprise & Consumer",
+    "summary": "Mobility platform. Bold black and white, tight type, urban energy",
+    "title": "Uber",
+    "design_md": "../design-md/uber/DESIGN.md",
+    "preview": "../design-md/uber/preview.html",
+    "preview_dark": "../design-md/uber/preview-dark.html",
+    "colors": [
+      "#000000",
+      "#ffffff",
+      "#e2e2e2",
+      "#f3f3f3",
+      "#efefef",
+      "#4b4b4b"
+    ]
+  },
+  {
+    "slug": "vercel",
+    "display_name": "Vercel",
+    "category": "Developer Tools & Platforms",
+    "summary": "Frontend deployment platform. Black and white precision, Geist font",
+    "title": "Vercel",
+    "design_md": "../design-md/vercel/DESIGN.md",
+    "preview": "../design-md/vercel/preview.html",
+    "preview_dark": "../design-md/vercel/preview-dark.html",
+    "colors": [
+      "#171717",
+      "#ffffff",
+      "#fafafa",
+      "#ebebeb",
+      "#808080",
+      "#666666"
+    ]
+  },
+  {
+    "slug": "voltagent",
+    "display_name": "VoltAgent",
+    "category": "AI & Machine Learning",
+    "summary": "AI agent framework. Void-black canvas, emerald accent, terminal-native",
+    "title": "VoltAgent",
+    "design_md": "../design-md/voltagent/DESIGN.md",
+    "preview": "../design-md/voltagent/preview.html",
+    "preview_dark": "../design-md/voltagent/preview-dark.html",
+    "colors": [
+      "#050507",
+      "#101010",
+      "#00d992",
+      "#2fd6a1",
+      "#10b981",
+      "#818cf8"
+    ]
+  },
+  {
+    "slug": "warp",
+    "display_name": "Warp",
+    "category": "Developer Tools & Platforms",
+    "summary": "Modern terminal. Dark IDE-like interface, block-based command UI",
+    "title": "Warp",
+    "design_md": "../design-md/warp/DESIGN.md",
+    "preview": "../design-md/warp/preview.html",
+    "preview_dark": "../design-md/warp/preview-dark.html",
+    "colors": [
+      "#0e0e0d",
+      "#161615",
+      "#faf9f6",
+      "#afaeac",
+      "#868584",
+      "#666469"
+    ]
+  },
+  {
+    "slug": "webflow",
+    "display_name": "Webflow",
+    "category": "Design & Productivity",
+    "summary": "Visual web builder. Blue-accented, polished marketing site aesthetic",
+    "title": "Webflow",
+    "design_md": "../design-md/webflow/DESIGN.md",
+    "preview": "../design-md/webflow/preview.html",
+    "preview_dark": "../design-md/webflow/preview-dark.html",
+    "colors": [
+      "#fff",
+      "#080808",
+      "#146ef5",
+      "#3b89ff",
+      "#7a3dff",
+      "#ed52cb"
+    ]
+  },
+  {
+    "slug": "wise",
+    "display_name": "Wise",
+    "category": "Fintech & Crypto",
+    "summary": "International money transfer. Bright green accent, friendly and clear",
+    "title": "Wise",
+    "design_md": "../design-md/wise/DESIGN.md",
+    "preview": "../design-md/wise/preview.html",
+    "preview_dark": "../design-md/wise/preview-dark.html",
+    "colors": [
+      "#ffffff",
+      "#0e0f0c",
+      "#9fe870",
+      "#163300",
+      "#e2f6d5",
+      "#868685"
+    ]
+  },
+  {
+    "slug": "x.ai",
+    "display_name": "xAI",
+    "category": "AI & Machine Learning",
+    "summary": "Elon Musk's AI lab. Stark monochrome, futuristic minimalism",
+    "title": "xAI",
+    "design_md": "../design-md/x.ai/DESIGN.md",
+    "preview": "../design-md/x.ai/preview.html",
+    "preview_dark": "../design-md/x.ai/preview-dark.html",
+    "colors": [
+      "#f8f8f8",
+      "#ffffff",
+      "#1f2228",
+      "rgba(31, 34, 40, 0.7)",
+      "rgba(31, 34, 40, 0.5)",
+      "rgba(31, 34, 40, 0.3)"
+    ]
+  },
+  {
+    "slug": "zapier",
+    "display_name": "Zapier",
+    "category": "Developer Tools & Platforms",
+    "summary": "Automation platform. Warm orange, friendly illustration-driven",
+    "title": "Zapier",
+    "design_md": "../design-md/zapier/DESIGN.md",
+    "preview": "../design-md/zapier/preview.html",
+    "preview_dark": "../design-md/zapier/preview-dark.html",
+    "colors": [
+      "#201515",
+      "#fffefb",
+      "#fffdf9",
+      "#36342e",
+      "#939084",
+      "#c5c0b1"
+    ]
+  }
+]
