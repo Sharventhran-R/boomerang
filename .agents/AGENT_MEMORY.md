@@ -483,16 +483,61 @@
     - Backend test suite: `pytest` passed 30 of 30 tests in 29.10s (including new spatial filtering before pagination & radius boundaries test in `tests/test_geo.py`).
     - Backend linting & typing: `ruff check` (0 errors), `ruff format --check` (27 files formatted), `mypy app tests` (0 errors across 27 files).
     - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.
-
-
-
-
-
-
-
-
-
-
-
-
-
+- 2026-10-18: Completed Phase 6 — Complete Location Selection and Map Discovery Upgrade.
+  - Priority 1: Report Creation Location Selection (Missing & Found)
+    - Created `ReportLocationPickerSheet` (`frontend/lib/ui/widgets/report_location_picker_sheet.dart`) providing 3 intuitive methods:
+      - Method A (Search): Prominent search bar with debounced place autocomplete suggestions (querying OpenStreetMap Nominatim with local caching). Selecting a suggestion centers the map camera.
+      - Method B (GPS): Explicit "Use My Current Location" button obtaining device position, moving the map camera, reverse-geocoding the address, and allowing pin refinement. Graceful error handling for denied/disabled GPS.
+      - Method C (Manual Map Pinpointing): Interactive `FlutterMap` under a fixed center pin indicator. Panning moves the map beneath the pin; debounced reverse geocoding on movement stop resolves human-readable addresses while preserving exact coordinates on geocoding network failures.
+    - Explicit Confirmation & Form State:
+      - Returns `LocationSelectionResult(latitude, longitude, address)` on explicit "Confirm Location" tap.
+      - `CreateReportScreen` displays confirmed coordinates badge with "Change" (reopens picker preserving previous coordinates) and "Clear" actions.
+      - Form validation strictly requires explicit coordinates in live mode (`isMockMode == false`), preventing silent fallbacks to Kyiv or discovery anchors.
+      - Reusable across both Missing and Found reports without duplicating logic.
+  - Priority 2: Map Section Discovery Search & "Search this area"
+    - Integrated place search into `MapScreen`: debounced place autocomplete suggestions list, selecting suggestion updates discovery anchor and queries reports.
+    - GPS recentering: "Locate Me" button triggers GPS fix and centers map on device position.
+    - Explicit "Search this area": Panning > 300m away displays floating "Search this area" button. Activating it sets the settled map center as the new discovery anchor, queries nearby reports, and synchronizes with Home without spamming backend queries on camera movement.
+    - Strict Geographic Filtering: Preserves 5.0 km default radius and PostGIS boundary enforcement. Unanchored state displays 0 nearby reports.
+    - Concept Separation: Incident location (stored on report) and discovery location (`LocationService.instance.currentLocation` shared between Home & Map) remain strictly decoupled. Picking report locations never alters the discovery anchor.
+  - Verification & Quality:
+    - Dedicated regression test suite created: `frontend/test/phase_6_location_test.dart` (15/15 tests passed).
+    - Full Flutter test suites run: 138 of 138 tests passed (`phase_6_location_test.dart`, `phase_6_6_test.dart`, `nearby_location_anchor_test.dart`, `phase_6_7_test.dart`, `phase_6_8_test.dart`, `phase_6_4_test.dart`, `phase_6_5_test.dart`, `remediation_test.dart`, `stabilization_test.dart`).
+    - Static analysis: `flutter analyze` reported 0 issues.
+    - Formatting check: `dart format --output=none --set-exit-if-changed .` passed cleanly (43 files checked).
+    - Backend test suite: `pytest` passed 30 of 30 tests in 19.89s.
+    - Backend linting, format check & typing: `ruff check` (0 errors), `ruff format --check` (27 files formatted), `mypy app tests` (0 errors across 27 files).
+    - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.
+- 2026-10-18: Bug Fix — Newly Created Reports Missing From My Account (End-to-End Investigation & Resolution).
+  - Lifecycle Trace & Confirmed Root Cause:
+    1. Database Persistence Verified: The user's two reports (`2425ba1b-1844-4788-ad5c-9e9167cfca74` 'qwertyuioploi' MISSING and `92a8f293-d49f-4f65-a903-05f327e776c4` 'asdfghjkl' FOUND) WERE successfully persisted in PostgreSQL with correct `created_by_user_id = 7e3a5868-4d1e-4077-8bb4-a1ddc66b9341` (`sai@gmail.com`) at Kyiv coordinates (30.52, 50.44).
+    2. Backend Missing Endpoint: The FastAPI backend had no dedicated `/api/v1/reports/me` route or `mine=True`/`user_id` query parameter on `GET /api/v1/reports` allowing users to fetch their own reports globally regardless of location.
+    3. Frontend In-Memory Leak & Radius Filter Misalignment: `ReportRepository.userReports` only read from `_userCreatedReports` (an ephemeral in-memory list lost on restart/refresh) and `_reports` (public nearby discovery feed clamped to 5.0 km from active GPS/anchor). Since the user's active anchor was in Chennai (~13.0, 80.1), PostGIS radius filtering properly excluded the Kyiv reports from the discovery feed, causing `userReports` to return empty.
+    4. Screen Fetching & Resilience Gap: `MyReportsScreen` had no network load trigger in `initState`, no pull-to-refresh (`RefreshIndicator`), and silently displayed an empty list on failure rather than showing an actionable error/retry card.
+  - Architecture & Data Flow Fixes:
+    - Backend (`app/services/report.py` & `app/api/reports.py`):
+      - Added `user_id: uuid.UUID | None = None` parameter to `list_reports` filtering by `Report.created_by_user_id == user_id` without requiring geospatial coordinates.
+      - Added `GET /api/v1/reports/me` endpoint protected by `current_user: User = Depends(get_current_user)`, returning all reports owned by the authenticated caller across all locations, statuses, and types.
+      - Added `mine: bool = Query(False)` on `GET /api/v1/reports` enforcing caller ownership via `current_user` and bypassing geo-filtering when coordinates are omitted.
+    - Frontend Repository (`frontend/lib/services/report_repository.dart`):
+      - Added dedicated `_userReports` state, `_isLoadingUserReports`, `_userReportsError`, and `_hasLoadedUserReports`.
+      - Implemented `loadUserReports({bool forceRefresh = false})` targeting `/api/v1/reports/me` with Bearer auth token attachment and structured error handling.
+      - Updated `userReports` getter to prioritize server-fetched `_userReports` alongside session reports.
+      - Updated `createReport` to automatically prepend newly created reports to `_userReports` and cached reports, and `clearUserData` on logout.
+    - UI Integration (`frontend/lib/ui/screens/my_reports_screen.dart`):
+      - Wired `initState` and `_onAuthChanged` to automatically invoke `loadUserReports()`.
+      - Added `RefreshIndicator` for smooth pull-to-refresh.
+      - Added loading spinner and prominent error card with "Retry" action on network failure, preventing silent blank states.
+      - Decoupled `_onAuthChanged` from `_onReportsChanged` to prevent infinite re-render loops on errors.
+  - Regression Testing & Quality Verification:
+    - Backend tests (`tests/test_reports.py`): Added `test_my_reports_unauthenticated` (verifying 401 Unauthorized) and `test_my_reports_lifecycle_and_isolation` (verifying Missing/Found reports returned, geo-radius independence, and user isolation).
+    - Flutter regression suite (`frontend/test/my_reports_regression_test.dart`): Added 5 comprehensive test groups covering:
+      1. Missing & Found creation and loading via `loadUserReports`.
+      2. Reports remaining visible in My Reports when incident location is outside discovery radius while nearby discovery excludes them.
+      3. Strict user-to-user isolation (User A cannot see User B's reports in My Reports).
+      4. Navigation away and back with fresh authenticated fetch.
+      5. Visible error card and retry recovery on network failures.
+    - Full Flutter test suite: 143+ tests passing with 0 failures across all 10 suites (`--concurrency=1`).
+    - Backend suite: 32 of 32 tests passed in `pytest`.
+    - Typecheck & Linting: `mypy app tests` (0 errors), `ruff check` (0 errors), `ruff format --check` (clean), `flutter analyze` (0 issues), `dart format` (clean).
+    - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.

@@ -8,7 +8,9 @@ from fastapi import (
     Query,
     Response,
     UploadFile,
-    status,
+)
+from fastapi import (
+    status as http_status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +31,7 @@ reports_router = APIRouter()
 
 
 @reports_router.post(
-    "", response_model=ReportResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=ReportResponse, status_code=http_status.HTTP_201_CREATED
 )
 async def create_report(
     report_in: CreateReportRequest,
@@ -46,6 +48,35 @@ async def create_report(
         raise
 
 
+@reports_router.get("/me", response_model=ReportListResponse)
+async def list_my_reports(
+    type: ReportType | None = None,
+    category: ReportCategory | None = None,
+    status: ReportStatus | None = None,
+    search: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort: str = Query("newest", pattern="^(newest|oldest)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    List reports owned by the authenticated user across all locations and statuses.
+    """
+    return await report_service.list_reports(
+        db=db,
+        user_id=current_user.id,
+        type=type,
+        category=category,
+        status=status,
+        search=search,
+        page=page,
+        page_size=page_size,
+        sort=sort,
+        geo=None,
+    )
+
+
 @reports_router.get("", response_model=ReportListResponse)
 async def list_reports(
     type: ReportType | None = None,
@@ -55,6 +86,7 @@ async def list_reports(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     sort: str = Query("newest", pattern="^(newest|oldest|distance)$"),
+    mine: bool = Query(False),
     geo: GeoSearchParams = Depends(get_geo_params),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user),
@@ -62,6 +94,35 @@ async def list_reports(
     """
     List reports with pagination and filtering.
     """
+    if mine:
+        if current_user is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+            )
+        has_geo = (
+            geo.latitude is not None
+            and geo.longitude is not None
+            and geo.radius_km is not None
+        )
+        if sort == "distance" and not has_geo:
+            raise HTTPException(
+                status_code=422,
+                detail="sort=distance requires latitude, longitude, and radius_km",
+            )
+        return await report_service.list_reports(
+            db=db,
+            user_id=current_user.id,
+            type=type,
+            category=category,
+            status=status,
+            search=search,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+            geo=geo if has_geo else None,
+        )
+
     if sort == "distance" and (
         geo.latitude is None or geo.longitude is None or geo.radius_km is None
     ):
@@ -127,7 +188,7 @@ async def update_report(
         }
         if report_in.status not in valid_transitions.get(report.status, set()):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Cannot transition from {report.status} to {report_in.status}",
             )
 
@@ -137,7 +198,7 @@ async def update_report(
 @reports_router.post(
     "/{report_id}/images",
     response_model=ReportImageResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=http_status.HTTP_201_CREATED,
 )
 async def upload_image(
     report_id: uuid.UUID,
@@ -161,13 +222,13 @@ async def upload_image(
         return await report_service.upload_report_image(db, report, file)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
         )
 
 
 @reports_router.delete(
     "/{report_id}/images/{image_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=http_status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
 async def delete_image(

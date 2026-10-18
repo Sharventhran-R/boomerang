@@ -456,3 +456,114 @@ async def test_deterministic_sorting_newest_oldest(
     all_paginated_ids = [i["id"] for i in items_p1] + [i["id"] for i in items_p2]
     # The order of all paginated items should be stable, no duplicates
     assert len(all_paginated_ids) == len(set(all_paginated_ids))
+
+
+@pytest.mark.asyncio
+async def test_my_reports_unauthenticated(client: AsyncClient) -> None:
+    res = await client.get("/api/v1/reports/me")
+    assert res.status_code == 401
+    res_mine = await client.get("/api/v1/reports?mine=true")
+    assert res_mine.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_my_reports_lifecycle_and_isolation(client: AsyncClient) -> None:
+    # 1. Create User A and User B
+    email_a = f"user_a_{uuid.uuid4()}@example.com"
+    email_b = f"user_b_{uuid.uuid4()}@example.com"
+
+    await client.post(
+        "/api/v1/auth/register",
+        json={"name": "User A", "email": email_a, "password": "password123"},
+    )
+    login_a = await client.post(
+        "/api/v1/auth/login", json={"email": email_a, "password": "password123"}
+    )
+    token_a = login_a.json()["access_token"]
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+
+    await client.post(
+        "/api/v1/auth/register",
+        json={"name": "User B", "email": email_b, "password": "password123"},
+    )
+    login_b = await client.post(
+        "/api/v1/auth/login", json={"email": email_b, "password": "password123"}
+    )
+    token_b = login_b.json()["access_token"]
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    # User A creates a MISSING report far away (e.g., Kyiv: 50.45, 30.52)
+    res_missing = await client.post(
+        "/api/v1/reports",
+        headers=headers_a,
+        json={
+            "type": "MISSING",
+            "title": "User A Missing Item",
+            "description": "Lost in Kyiv",
+            "category": "ELECTRONICS",
+            "latitude": 50.4500,
+            "longitude": 30.5200,
+            "event_time": "2026-10-18T10:00:00Z",
+            "reward_amount": "100.00",
+        },
+    )
+    assert res_missing.status_code == 201
+    missing_id = res_missing.json()["id"]
+
+    # User A creates a FOUND report also in Kyiv
+    res_found = await client.post(
+        "/api/v1/reports",
+        headers=headers_a,
+        json={
+            "type": "FOUND",
+            "title": "User A Found Item",
+            "description": "Found in Kyiv",
+            "category": "KEYS",
+            "latitude": 50.4510,
+            "longitude": 30.5210,
+            "event_time": "2026-10-18T11:00:00Z",
+        },
+    )
+    assert res_found.status_code == 201
+    found_id = res_found.json()["id"]
+
+    # 2. User A fetches My Reports via GET /api/v1/reports/me
+    res_my_reports = await client.get("/api/v1/reports/me", headers=headers_a)
+    assert res_my_reports.status_code == 200
+    my_items = res_my_reports.json()["items"]
+    my_ids = [item["id"] for item in my_items]
+    assert missing_id in my_ids
+    assert found_id in my_ids
+
+    # 3. User A fetches My Reports via GET /api/v1/reports?mine=true
+    res_mine = await client.get("/api/v1/reports?mine=true", headers=headers_a)
+    assert res_mine.status_code == 200
+    mine_ids = [item["id"] for item in res_mine.json()["items"]]
+    assert missing_id in mine_ids
+    assert found_id in mine_ids
+
+    # 4. Both reports are in Kyiv. When searching nearby discovery around New York
+    # (40.7128, -74.0060, 5km), neither report should appear in nearby
+    # discovery feed!
+    res_discovery = await client.get(
+        "/api/v1/reports?latitude=40.7128&longitude=-74.0060&radius_km=5.0",
+        headers=headers_a,
+    )
+    assert res_discovery.status_code == 200
+    discovery_ids = [item["id"] for item in res_discovery.json()["items"]]
+    assert missing_id not in discovery_ids
+    assert found_id not in discovery_ids
+
+    # 5. User B fetches My Reports - User B must NOT see User A's reports!
+    res_b_reports = await client.get("/api/v1/reports/me", headers=headers_b)
+    assert res_b_reports.status_code == 200
+    b_ids = [item["id"] for item in res_b_reports.json()["items"]]
+    assert missing_id not in b_ids
+    assert found_id not in b_ids
+
+    # User B via mine=true also must NOT see User A's reports
+    res_b_mine = await client.get("/api/v1/reports?mine=true", headers=headers_b)
+    assert res_b_mine.status_code == 200
+    b_mine_ids = [item["id"] for item in res_b_mine.json()["items"]]
+    assert missing_id not in b_mine_ids
+    assert found_id not in b_mine_ids

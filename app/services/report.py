@@ -115,10 +115,13 @@ async def list_reports(
     page_size: int = 20,
     sort: str = "newest",
     geo: GeoSearchParams | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     count_query = select(func.count(Report.id))
 
     filters = []
+    if user_id is not None:
+        filters.append(Report.created_by_user_id == user_id)
     if type:
         filters.append(Report.type == type)
     if category:
