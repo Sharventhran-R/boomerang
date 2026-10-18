@@ -637,3 +637,32 @@
     - Code Quality: `ruff check .` (0 errors), `ruff format --check .` (clean across 50 files), `mypy .` (strict passed, 0 errors across 46 source files).
     - Infrastructure & Operations: Verified Alembic migration `a4d442db2420` current, Docker Compose configuration valid, and standalone CLI runner commands (`--status`, `--once`, `--replay-dead-letters`, `scripts/kafka_smoke_test.py`) functional.
     - Repository safety: Zero Git write operations executed. Developer retains manual git ownership.
+- 2026-10-18: Completed Phase 7.4 (Reliable Event Consumer Foundation).
+  - Consumer Architecture & Infrastructure:
+    - Designed and implemented reusable consumer framework under `app/services/event_consumer/`:
+      - `handler.py`: Typed `EventHandler` protocol, `FunctionalEventHandler`, and `HandlerRegistry` supporting typed or wildcard event routing.
+      - `consumer.py`: `EventConsumer` coordinating message ingestion, validation against Phase 7.1 event contracts, PostgreSQL idempotency tracking, bounded retries with jitter, safe quarantine, and manual Kafka offset commits (`offset + 1`).
+      - Operational classifications: `ErrorCategory` (`UNSUPPORTED_VERSION`, `PARSE_ERROR`, `SCHEMA_VALIDATION_ERROR`, `HANDLER_ERROR`, `INTEGRITY_ERROR`), `ConsumerProcessingResult` (`SUCCESS`, `DUPLICATE_SKIPPED`, `IGNORED`, `QUARANTINED`).
+    - Settings & Environment:
+      - Added validated consumer configuration in `app/core/config.py` using Pydantic v2 `Field` constraints (`CONSUMER_DEFAULT_GROUP_ID`, `CONSUMER_POLL_TIMEOUT_SECONDS`, `CONSUMER_MAX_POLL_RECORDS`, `CONSUMER_MAX_RETRIES`, `CONSUMER_INITIAL_RETRY_DELAY_SECONDS`, `CONSUMER_MAX_RETRY_DELAY_SECONDS`, `CONSUMER_BACKOFF_MULTIPLIER`).
+      - Documented settings in `.env.example`.
+  - Durable Idempotency & Database Schema:
+    - Added `ConsumerEventStatus` enum (`PROCESSING`, `COMPLETED`, `FAILED`, `QUARANTINED`) and `ConsumerEvent` model in `app/db/models.py`.
+    - Enforced atomic concurrency with `UniqueConstraint("consumer_name", "event_id")` and indexed lookups on `(consumer_name, status)` and `(topic, partition, offset)`.
+    - Handlers and idempotency records commit atomically within the same PostgreSQL transaction.
+    - Created clean, reversible Alembic migration `alembic/versions/f99144acbb2a_phase_7_4_consumer_events.py` and filtered reflected PostGIS tables in `alembic/env.py`. Verified `alembic check` clean (no unmanaged drift).
+  - Poison-Message & Offset Safety:
+    - Malformed JSON, unparseable payloads, unknown event types, and unsupported versions are durably quarantined with bounded, privacy-scrubbed diagnostic errors and their partition offsets are immediately acknowledged to prevent head-of-line blocking.
+    - Manual Kafka offset commits (`commit_offset({tp: OffsetAndMetadata(offset + 1, "")})`) execute strictly after database transactions commit.
+    - Added explicit operator replay mechanism via `replay_quarantined_event` and `replay_all_quarantined`.
+  - Operations & CLI:
+    - Implemented `scripts/run_event_consumer.py` CLI runner with `--consumer-name`, `--group-id`, `--topic`, `--once`, `--status`, `--replay`, `--replay-quarantined`.
+    - Created comprehensive documentation in `docs/event_consumers.md` covering architecture, idempotency, offset safety, retry/quarantine policy, runbooks, and future integration points.
+  - Quality & Verification:
+    - Implemented 11 comprehensive tests in `tests/test_event_consumer.py` covering: envelope parsing, dispatch, unsupported versions, malformed JSON, duplicate delivery skipping, concurrent multi-worker delivery, atomic rollback, backoff retries, explicit operator replay, privacy scrubbing, unhandled event types, and live Kafka roundtrip.
+    - Focused consumer test suite: 11 of 11 passed in 10.00s.
+    - Full backend test suite: 102 of 102 passed in 113.74s (0 failures, 0 errors).
+    - Code quality: `ruff check .` (0 errors), `ruff format --check .` (clean across 57 files), `mypy .` (strict passed, 0 errors across 52 source files).
+    - Database & Alembic: `alembic check` verified clean (code 0).
+    - Repository safety: Zero Git write operations executed. Developer retains manual Git ownership.
+

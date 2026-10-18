@@ -6,6 +6,7 @@ from typing import Any
 
 from geoalchemy2 import Geography
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     Enum,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as pg_UUID
@@ -21,6 +23,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.db.database import Base
+
+
+class ConsumerEventStatus(enum.StrEnum):
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    QUARANTINED = "QUARANTINED"
 
 
 class OutboxStatus(enum.StrEnum):
@@ -306,3 +315,68 @@ class OutboxEvent(Base):
         DateTime(timezone=True), nullable=True
     )
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ConsumerEvent(Base):
+    __tablename__ = "consumer_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "consumer_name",
+            "event_id",
+            name="uq_consumer_events_consumer_event",
+        ),
+        Index(
+            "ix_consumer_events_status_retry",
+            "consumer_name",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_consumer_events_topic_partition_offset",
+            "topic",
+            "partition",
+            "offset",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    consumer_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    aggregate_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), nullable=False, index=True
+    )
+    topic: Mapped[str] = mapped_column(String(255), nullable=False)
+    partition: Mapped[int] = mapped_column(nullable=False)
+    offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    status: Mapped[ConsumerEventStatus] = mapped_column(
+        Enum(ConsumerEventStatus, name="consumer_event_status_enum"),
+        nullable=False,
+        default=ConsumerEventStatus.COMPLETED,
+        index=True,
+    )
+    retry_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
+
+    error_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

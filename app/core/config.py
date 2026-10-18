@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     OUTBOX_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
     OUTBOX_STALE_PROCESSING_SECONDS: float = Field(default=300.0, gt=0)
 
+    # Event Consumer Foundation
+    CONSUMER_DEFAULT_GROUP_ID: str = "boomerang-consumer-group"
+    CONSUMER_POLL_TIMEOUT_SECONDS: float = Field(default=1.0, gt=0)
+    CONSUMER_MAX_POLL_RECORDS: int = Field(default=50, ge=1, le=1000)
+    CONSUMER_MAX_RETRIES: int = Field(default=3, ge=1)
+    CONSUMER_INITIAL_RETRY_DELAY_SECONDS: float = Field(default=0.5, gt=0)
+    CONSUMER_MAX_RETRY_DELAY_SECONDS: float = Field(default=30.0, gt=0)
+    CONSUMER_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
+
     @property
     def sync_database_url(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
