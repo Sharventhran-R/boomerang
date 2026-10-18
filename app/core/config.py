@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = "tracker-images"
     S3_REGION_NAME: str = "us-east-1"
 
+    # Kafka Event Broker (Local Development)
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_DOMAIN_EVENTS_TOPIC: str = "boomerang.domain.events"
+
     @property
     def sync_database_url(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

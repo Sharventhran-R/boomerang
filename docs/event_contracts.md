@@ -1,8 +1,8 @@
 # Boomerang Domain Event Contracts (Phase 7.1 Specification)
 
 > **Status Notice**: Phase 7.1 defines versioned, validated event contracts and schema definitions in Python/Pydantic v2.
-> **Event contracts are NOT yet connected to Kafka, transactional outbox tables, or event publishers.**
-> Event publishing, Kafka producers/consumers, and broker infrastructure are scheduled for Phase 7.2 and subsequent phases.
+> Local Apache Kafka infrastructure and topic provisioning are established in Phase 7.2 (see [docs/kafka_setup.md](kafka_setup.md)).
+> Transactional outbox persistence and live event publishing will be connected in subsequent phases.
 
 ---
 

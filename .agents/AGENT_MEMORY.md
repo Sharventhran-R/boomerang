@@ -565,3 +565,31 @@
     - Backend typing (`mypy app tests`): 0 errors across 34 source files (`mypy --strict`).
     - Backend linting & formatting (`ruff check app tests`, `ruff format --check app tests`): 0 errors, 34 files formatted.
     - Preserved repository safety: 0 Git write operations executed.
+- 2026-10-18: Completed Phase 7.2 — Local Kafka Infrastructure.
+  - Architecture & Infrastructure:
+    - Docker Compose Kafka Deployment (`docker-compose.yml`):
+      - Configured Apache Kafka 3.8.0 in single-node KRaft mode (no ZooKeeper required) under container name `tracker_kafka`.
+      - Configured dual advertised listeners: `PLAINTEXT://kafka:29092` for internal inter-container communication and `PLAINTEXT_HOST://localhost:9092` for local host development.
+      - Controller listener bound to port 9093 (`CONTROLLER://0.0.0.0:9093`) with KRaft quorum voter `1@kafka:9093`.
+      - Persistent data storage configured via Docker named volume `kafka_data` mounted at `/var/lib/kafka/data`.
+      - Health check configured using `/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092` (10s interval, 5s timeout, 5 retries, 15s start period).
+    - Automated Topic Provisioning (`kafka-init` in `docker-compose.yml`):
+      - Container `tracker_kafka_init` depends on `kafka: service_healthy`.
+      - Runs `/opt/kafka/bin/kafka-topics.sh` to idempotently create `boomerang.domain.events` with 3 partitions and replication factor 1.
+  - Application Settings & Environment:
+    - Added `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_DOMAIN_EVENTS_TOPIC` to `app/core/config.py` with defaults (`localhost:9092`, `boomerang.domain.events`).
+    - Updated `.env.example` and local `.env` with Kafka development variables and documentation.
+  - Development Smoke Testing:
+    - Created `scripts/kafka_smoke_test.py`: Standalone CLI tool that publishes a synthetic probe message (`INFRASTRUCTURE_SMOKE_TEST`, no real report data) to `boomerang.domain.events`, verifies consumer retrieval in a dedicated group, reports roundtrip latency and partition/offset details, and handles Windows console encodings cleanly.
+    - Created `tests/test_kafka_smoke.py`: Automated pytest test asserting message roundtrip, partition routing, and payload fidelity, gracefully skipping if broker is offline.
+    - Configured mypy override for `aiokafka.*` in `pyproject.toml` maintaining strict type check pass across all 41 source files.
+  - Operations & Documentation:
+    - Created `docs/kafka_setup.md`: Complete guide covering startup (`docker compose up -d`), topic inspection, partition details, container health verification, log tailing, graceful stopping, data resets, and troubleshooting.
+    - Cross-referenced Kafka guide in `docs/event_contracts.md`.
+  - Quality & Verification:
+    - Docker Compose validated via `docker compose config` and container health verified via `docker compose ps` (`tracker_kafka` healthy, `tracker_kafka_init` completed with code 0).
+    - Verified topic creation using `kafka-topics.sh --describe` (3 partitions, leader 1).
+    - CLI smoke test executed successfully: partition 0, offset 1, roundtrip latency 2.0 ms.
+    - Full pytest suite: 75 of 75 tests passed in 21.48s (0 failures, 0 errors).
+    - Code quality: `ruff check .` (0 errors), `ruff format --check .` (0 errors, 43 files formatted), `mypy .` (strict passed, 0 errors across 41 source files).
+    - Git safety: Strict compliance with manual Git ownership rule; zero git write commands executed.
