@@ -714,3 +714,318 @@ async def test_real_kafka_outbox_dispatch(client: AsyncClient) -> None:
     finally:
         await dispatcher.stop()
         await consumer.stop()
+
+
+@pytest.mark.asyncio
+async def test_atomic_rollback_when_outbox_insertion_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """13. Verifies outbox creation failure rolls back domain mutation."""
+    from typing import Any
+
+    import app.services.report as report_service
+    from app.schemas.report import CreateReportRequest
+    from app.services.report import create_report
+
+    user_id = uuid.uuid4()
+    async with AsyncSessionLocal() as session:
+        session.add(
+            User(
+                id=user_id,
+                name="Outbox Fail User",
+                email=f"outbox_fail_{user_id}@example.com",
+                password_hash="fakehash",
+            )
+        )
+        await session.commit()
+
+    # Monkeypatch create_outbox_event to simulate persistence failure
+    async def mock_fail_outbox(*args: Any, **kwargs: Any) -> OutboxEvent:
+        raise RuntimeError("Simulated outbox table persistence failure")
+
+    monkeypatch.setattr(report_service, "create_outbox_event", mock_fail_outbox)
+
+    req = CreateReportRequest(
+        type=ReportType.MISSING,
+        title="Unpersisted Report",
+        description="Should be rolled back",
+        category=ReportCategory.ELECTRONICS,
+        latitude=30.0,
+        longitude=40.0,
+        event_time=datetime.now(UTC),
+    )
+
+    with pytest.raises(
+        RuntimeError, match="Simulated outbox table persistence failure"
+    ):
+        async with AsyncSessionLocal() as session:
+            await create_report(session, user_id, req)
+
+    # Verify report was NOT persisted in PostgreSQL
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(
+            select(Report).where(Report.created_by_user_id == user_id)
+        )
+        assert res.scalars().all() == []
+        outbox_res = await session.execute(
+            select(OutboxEvent).where(OutboxEvent.event_type == "report.created")
+        )
+        matched = [
+            e
+            for e in outbox_res.scalars().all()
+            if e.payload.get("payload", {}).get("title") == "Unpersisted Report"
+        ]
+        assert matched == []
+
+
+@pytest.mark.asyncio
+async def test_at_least_once_duplicate_delivery_on_db_ack_failure() -> None:
+    """14. Verifies at-least-once delivery: Kafka ACK succeeds but DB update fails.
+
+    Subsequent worker retry re-dispatches with the EXACT SAME event_id,
+    allowing downstream consumers to deduplicate.
+    """
+    import json
+
+    event_id = uuid.uuid4()
+    agg_id = uuid.uuid4()
+
+    async with AsyncSessionLocal() as session:
+        outbox = OutboxEvent(
+            event_id=event_id,
+            event_type="report.created",
+            event_version=1,
+            aggregate_type="report",
+            aggregate_id=agg_id,
+            topic="test.events",
+            payload={"event_id": str(event_id), "aggregate_id": str(agg_id)},
+            status=OutboxStatus.PENDING,
+            occurred_at=datetime.now(UTC),
+        )
+        session.add(outbox)
+        await session.commit()
+        db_id = outbox.id
+
+    sent_keys_and_values: list[tuple[bytes, bytes]] = []
+
+    async def mock_send_and_wait(
+        topic: str, value: bytes, key: bytes | None = None
+    ) -> None:
+        sent_keys_and_values.append((key or b"", value))
+
+    mock_producer = AsyncMock()
+    mock_producer.send_and_wait = AsyncMock(side_effect=mock_send_and_wait)
+
+    dispatcher = OutboxDispatcher(producer=mock_producer)
+
+    # 1st dispatch attempt succeeds to Kafka, but record_success raises DB error
+    original_record_success = dispatcher.record_success
+    call_count = 0
+
+    async def flaky_record_success(outbox_id: uuid.UUID) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ConnectionResetError("Simulated DB connection reset after Kafka ACK")
+        await original_record_success(outbox_id)
+
+    dispatcher.record_success = flaky_record_success  # type: ignore[method-assign]
+
+    # Attempt 1: Kafka publish succeeds, but DB record_success fails
+    await dispatcher.process_batch(batch_size=10)
+
+    assert len(sent_keys_and_values) == 1
+    # Check that outbox row moved to FAILED with next_retry_at scheduled
+    async with AsyncSessionLocal() as session:
+        ev = await session.get(OutboxEvent, db_id)
+        assert ev is not None
+        assert ev.status == OutboxStatus.FAILED
+        assert ev.retry_count == 1
+        assert "ConnectionResetError" in (ev.last_error or "")
+        # Reset next_retry_at to now so it's immediately eligible for second attempt
+        ev.next_retry_at = datetime.now(UTC)
+        await session.commit()
+
+    # Attempt 2: Worker retries event. Kafka publish and DB record_success succeed
+    await dispatcher.process_batch(batch_size=10)
+
+    # Kafka received duplicate message (at-least-once delivery)
+    assert len(sent_keys_and_values) == 2
+
+    # Both messages must have identical key and event_id for deduplication
+    msg1_payload = json.loads(sent_keys_and_values[0][1].decode("utf-8"))
+    msg2_payload = json.loads(sent_keys_and_values[1][1].decode("utf-8"))
+    assert msg1_payload["event_id"] == str(event_id)
+    assert msg2_payload["event_id"] == str(event_id)
+    assert sent_keys_and_values[0][0] == str(agg_id).encode("utf-8")
+    assert sent_keys_and_values[1][0] == str(agg_id).encode("utf-8")
+
+    # Final DB status is PUBLISHED
+    async with AsyncSessionLocal() as session:
+        ev = await session.get(OutboxEvent, db_id)
+        assert ev is not None
+        assert ev.status == OutboxStatus.PUBLISHED
+        assert ev.published_at is not None
+
+
+@pytest.mark.asyncio
+async def test_stale_worker_recovery_and_dead_letter_on_repeated_crashes() -> None:
+    """15. Verifies stale worker recovery:
+    - Events stuck in PROCESSING past stale timeout are reclaimed.
+    - Healthy workers (< stale timeout) are not stolen.
+    - Reclaimed events track retry_count and transition to DEAD_LETTER when exhausted.
+    """
+    from datetime import timedelta
+
+    ev_stale_id = uuid.uuid4()
+    ev_healthy_id = uuid.uuid4()
+    now = datetime.now(UTC)
+
+    async with AsyncSessionLocal() as session:
+        # 1. Stale event: stuck in PROCESSING for 310 seconds (exceeds 300s cutoff)
+        stale_ev = OutboxEvent(
+            event_id=ev_stale_id,
+            event_type="report.created",
+            event_version=1,
+            aggregate_type="report",
+            aggregate_id=uuid.uuid4(),
+            topic="test.events",
+            payload={"stale": True},
+            status=OutboxStatus.PROCESSING,
+            retry_count=0,
+            max_retries=5,
+            occurred_at=now - timedelta(seconds=320),
+            updated_at=now - timedelta(seconds=310),
+        )
+        # 2. Healthy event: claimed 30 seconds ago by an active worker
+        healthy_ev = OutboxEvent(
+            event_id=ev_healthy_id,
+            event_type="report.created",
+            event_version=1,
+            aggregate_type="report",
+            aggregate_id=uuid.uuid4(),
+            topic="test.events",
+            payload={"healthy": True},
+            status=OutboxStatus.PROCESSING,
+            retry_count=0,
+            max_retries=5,
+            occurred_at=now - timedelta(seconds=35),
+            updated_at=now - timedelta(seconds=30),
+        )
+        session.add(stale_ev)
+        session.add(healthy_ev)
+        await session.commit()
+        stale_pk = stale_ev.id
+        healthy_pk = healthy_ev.id
+
+    dispatcher = OutboxDispatcher(producer=AsyncMock())
+
+    # Claim batch: should reclaim stale_ev, but NEVER healthy_ev
+    claimed = await dispatcher.claim_batch(batch_size=10)
+    claimed_ids = {e.id for e in claimed}
+
+    assert stale_pk in claimed_ids
+    assert healthy_pk not in claimed_ids  # Healthy worker's job is protected!
+
+    # Verify stale event had retry_count incremented and last_error recorded
+    async with AsyncSessionLocal() as session:
+        ev = await session.get(OutboxEvent, stale_pk)
+        assert ev is not None
+        assert ev.retry_count == 1
+        assert "Reclaimed after stale processing timeout" in (ev.last_error or "")
+
+    # Repeated worker crashes (retry_count reaching max_retries) lands in DEAD_LETTER
+    async with AsyncSessionLocal() as session:
+        ev = await session.get(OutboxEvent, stale_pk)
+        assert ev is not None
+        ev.status = OutboxStatus.PROCESSING
+        ev.retry_count = 4  # 4 attempts already, this next crash will be 5th
+        ev.updated_at = now - timedelta(seconds=310)
+        await session.commit()
+
+    # Claim again: 5th attempt exceeded max_retries, should be trapped in DEAD_LETTER
+    claimed2 = await dispatcher.claim_batch(batch_size=10)
+    claimed2_ids = {e.id for e in claimed2}
+    assert stale_pk not in claimed2_ids  # Not dispatched
+
+    async with AsyncSessionLocal() as session:
+        ev = await session.get(OutboxEvent, stale_pk)
+        assert ev is not None
+        assert ev.status == OutboxStatus.DEAD_LETTER
+        assert ev.retry_count == 5
+
+
+@pytest.mark.asyncio
+async def test_recovery_completion_on_already_resolved_report_no_duplicate_event(
+    client: AsyncClient,
+) -> None:
+    """16. Verifies completing recovery request when report was already resolved
+    does not emit duplicate report.resolved events.
+    """
+    headers_owner = await register_user(client, "Owner Already Resolved")
+    headers_finder = await register_user(client, "Finder Already Resolved")
+
+    # 1. Create report
+    rep_res = await client.post(
+        "/api/v1/reports",
+        headers=headers_owner,
+        json={
+            "type": "MISSING",
+            "title": "Wallet in library",
+            "description": "Leather wallet",
+            "category": "WALLET",
+            "latitude": 40.7128,
+            "longitude": -74.0060,
+            "event_time": "2026-10-18T12:00:00Z",
+        },
+    )
+    assert rep_res.status_code == 201
+    report_id = uuid.UUID(rep_res.json()["id"])
+
+    # 2. Create and accept recovery request
+    rec_res = await client.post(
+        "/api/v1/recovery-requests",
+        headers=headers_finder,
+        json={"report_id": str(report_id), "message": "I found it"},
+    )
+    assert rec_res.status_code == 201
+    recovery_id = uuid.UUID(rec_res.json()["id"])
+
+    await client.patch(
+        f"/api/v1/recovery-requests/{recovery_id}",
+        headers=headers_owner,
+        json={"status": "ACCEPTED"},
+    )
+
+    # 3. Owner independently resolves the report first via update_report
+    patch_rep = await client.patch(
+        f"/api/v1/reports/{report_id}",
+        headers=headers_owner,
+        json={"status": "RESOLVED"},
+    )
+    assert patch_rep.status_code == 200
+
+    # 4. Now recovery request is completed
+    complete_res = await client.patch(
+        f"/api/v1/recovery-requests/{recovery_id}",
+        headers=headers_owner,
+        json={"status": "COMPLETED"},
+    )
+    assert complete_res.status_code == 200
+
+    # 5. Check outbox events for report_id: exactly ONE report.resolved event
+    async with AsyncSessionLocal() as session:
+        events = list(
+            (
+                await session.execute(
+                    select(OutboxEvent).where(
+                        OutboxEvent.aggregate_id == report_id,
+                        OutboxEvent.event_type == "report.resolved",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(events) == 1
+        assert events[0].payload["payload"]["resolution_reason"] == "user_resolved"

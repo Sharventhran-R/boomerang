@@ -621,3 +621,19 @@
     - Full pytest suite: 87 of 87 tests passed (0 failures, 0 errors).
     - Code quality: `ruff check .` (0 errors), `ruff format --check .` (clean, 50 files formatted), `mypy .` (strict passed, 0 errors across 46 source files).
     - Preserved repository safety: 0 Git write operations executed.
+- 2026-10-18: Completed Phase 7.3 Transactional Outbox Audit.
+  - Forensic Code Audit & Confirmed Defects Fixed:
+    1. Stale Worker Crash Loop & Poison Event Trapping: In `app/services/outbox_dispatcher.py`, fixed `claim_batch` to increment `retry_count` and record `last_error` when reclaiming stale rows from `PROCESSING` state. Exceeding `max_retries` due to worker crashes safely transitions poison events to `DEAD_LETTER` rather than infinitely crash-looping workers every 300s.
+    2. Setting Constraints & Validation: In `app/core/config.py`, added Pydantic v2 `Field(default=..., gt=0/ge=1)` validation to prevent negative/zero batch sizes or retry delays from environment misconfiguration.
+    3. Parameter Clarification: In `app/services/outbox_dispatcher.py`, renamed parameter `event_id` to `outbox_id` in `record_success` and `record_failure` to prevent ambiguity with the business `event_id`.
+    4. Worker Interruption Responsiveness: Updated `run_loop` to make sleep interrupts responsive to `stop_event` rather than blocking on the full interval.
+  - Test Suite & Regression Coverage:
+    - Added 4 targeted regression tests in `tests/test_outbox.py`:
+      - `test_atomic_rollback_when_outbox_insertion_fails`: asserts failure during outbox persistence rolls back report creation.
+      - `test_at_least_once_duplicate_delivery_on_db_ack_failure`: verifies Kafka ACK success followed by DB failure triggers at-least-once retry with identical `event_id` for consumer deduplication.
+      - `test_stale_worker_recovery_and_dead_letter_on_repeated_crashes`: asserts stale rows are reclaimed without stealing healthy worker tasks, and repeated crash loops land in `DEAD_LETTER`.
+      - `test_recovery_completion_on_already_resolved_report_no_duplicate_event`: asserts completing a recovery request on an already resolved report emits exactly one `report.resolved` event.
+    - Test Results: `tests/test_outbox.py` 16 of 16 tests passed. Full backend test suite 91 of 91 tests passed in 75.62s.
+    - Code Quality: `ruff check .` (0 errors), `ruff format --check .` (clean across 50 files), `mypy .` (strict passed, 0 errors across 46 source files).
+    - Infrastructure & Operations: Verified Alembic migration `a4d442db2420` current, Docker Compose configuration valid, and standalone CLI runner commands (`--status`, `--once`, `--replay-dead-letters`, `scripts/kafka_smoke_test.py`) functional.
+    - Repository safety: Zero Git write operations executed. Developer retains manual git ownership.

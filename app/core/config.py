@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,13 +30,13 @@ class Settings(BaseSettings):
     KAFKA_DOMAIN_EVENTS_TOPIC: str = "boomerang.domain.events"
 
     # Transactional Outbox & Dispatcher
-    OUTBOX_POLL_INTERVAL_SECONDS: float = 1.0
-    OUTBOX_BATCH_SIZE: int = 50
-    OUTBOX_MAX_RETRIES: int = 5
-    OUTBOX_INITIAL_RETRY_DELAY_SECONDS: float = 1.0
-    OUTBOX_MAX_RETRY_DELAY_SECONDS: float = 60.0
-    OUTBOX_BACKOFF_MULTIPLIER: float = 2.0
-    OUTBOX_STALE_PROCESSING_SECONDS: float = 300.0
+    OUTBOX_POLL_INTERVAL_SECONDS: float = Field(default=1.0, gt=0)
+    OUTBOX_BATCH_SIZE: int = Field(default=50, ge=1, le=1000)
+    OUTBOX_MAX_RETRIES: int = Field(default=5, ge=1)
+    OUTBOX_INITIAL_RETRY_DELAY_SECONDS: float = Field(default=1.0, gt=0)
+    OUTBOX_MAX_RETRY_DELAY_SECONDS: float = Field(default=60.0, gt=0)
+    OUTBOX_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
+    OUTBOX_STALE_PROCESSING_SECONDS: float = Field(default=300.0, gt=0)
 
     @property
     def sync_database_url(self) -> str:

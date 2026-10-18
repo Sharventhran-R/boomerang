@@ -137,12 +137,33 @@ class OutboxDispatcher:
             if not claimed:
                 return []
 
+            active_claimed: list[OutboxEvent] = []
             for event in claimed:
+                if event.status == OutboxStatus.PROCESSING:
+                    # Worker interrupted or crashed during previous attempt
+                    event.retry_count += 1
+                    event.last_error = (
+                        f"Reclaimed after stale processing timeout "
+                        f"({settings.OUTBOX_STALE_PROCESSING_SECONDS}s)"
+                    )
+                    if event.retry_count >= event.max_retries:
+                        event.status = OutboxStatus.DEAD_LETTER
+                        event.updated_at = now
+                        self.metrics.dead_letters += 1
+                        logger.error(
+                            "Stale outbox event %s exceeded max retries (%d). "
+                            "Marked DEAD_LETTER.",
+                            event.event_id,
+                            event.retry_count,
+                        )
+                        continue
+
                 event.status = OutboxStatus.PROCESSING
                 event.updated_at = now
+                active_claimed.append(event)
 
             await session.commit()
-            return claimed
+            return active_claimed
 
     async def publish_event(self, event: OutboxEvent) -> None:
         """Publishes serialized event envelope to Kafka, keyed by aggregate_id."""
@@ -158,10 +179,10 @@ class OutboxDispatcher:
             key=key,
         )
 
-    async def record_success(self, event_id: uuid.UUID) -> None:
+    async def record_success(self, outbox_id: uuid.UUID) -> None:
         """Marks an outbox event as PUBLISHED in a short transaction."""
         async with self.session_factory() as session:
-            event = await session.get(OutboxEvent, event_id)
+            event = await session.get(OutboxEvent, outbox_id)
             if event:
                 event.status = OutboxStatus.PUBLISHED
                 event.published_at = datetime.now(UTC)
@@ -169,13 +190,13 @@ class OutboxDispatcher:
                 await session.commit()
                 self.metrics.successes += 1
 
-    async def record_failure(self, event_id: uuid.UUID, error: Exception) -> None:
+    async def record_failure(self, outbox_id: uuid.UUID, error: Exception) -> None:
         """Records an attempt failure, scheduling retry or marking DEAD_LETTER."""
         now = datetime.now(UTC)
         error_msg = f"{type(error).__name__}: {error}"[:1000]
 
         async with self.session_factory() as session:
-            event = await session.get(OutboxEvent, event_id)
+            event = await session.get(OutboxEvent, outbox_id)
             if not event:
                 return
 
@@ -305,12 +326,28 @@ class OutboxDispatcher:
                 try:
                     processed = await self.process_batch()
                     if processed == 0:
-                        await asyncio.sleep(interval)
+                        if stop_event:
+                            try:
+                                await asyncio.wait_for(
+                                    stop_event.wait(), timeout=interval
+                                )
+                                break
+                            except TimeoutError:
+                                pass
+                        else:
+                            await asyncio.sleep(interval)
                 except asyncio.CancelledError:
                     break
                 except Exception as exc:
                     logger.error("Unexpected error in outbox loop: %s", exc)
-                    await asyncio.sleep(interval)
+                    if stop_event:
+                        try:
+                            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                            break
+                        except TimeoutError:
+                            pass
+                    else:
+                        await asyncio.sleep(interval)
         finally:
             await self.stop()
             logger.info("OutboxDispatcher loop exited.")
