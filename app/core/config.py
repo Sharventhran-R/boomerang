@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_DOMAIN_EVENTS_TOPIC: str = "boomerang.domain.events"
 
+    # Transactional Outbox & Dispatcher
+    OUTBOX_POLL_INTERVAL_SECONDS: float = 1.0
+    OUTBOX_BATCH_SIZE: int = 50
+    OUTBOX_MAX_RETRIES: int = 5
+    OUTBOX_INITIAL_RETRY_DELAY_SECONDS: float = 1.0
+    OUTBOX_MAX_RETRY_DELAY_SECONDS: float = 60.0
+    OUTBOX_BACKOFF_MULTIPLIER: float = 2.0
+    OUTBOX_STALE_PROCESSING_SECONDS: float = 300.0
+
     @property
     def sync_database_url(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

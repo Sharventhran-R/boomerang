@@ -19,6 +19,12 @@ from app.schemas.recovery import (
     RecoveryRequestListResponse,
     UpdateRecoveryRequestStatus,
 )
+from app.services.outbox import (
+    build_recovery_request_created_event,
+    build_recovery_request_updated_event,
+    build_report_resolved_event,
+    create_outbox_event,
+)
 
 
 async def get_recovery_request_by_id(
@@ -85,6 +91,12 @@ async def create_recovery_request(
         message=request_in.message,
     )
     db.add(recovery_req)
+    await db.flush()
+
+    # Enqueue recovery_request.created in the exact same database transaction
+    event = build_recovery_request_created_event(recovery_req)
+    await create_outbox_event(db, event)
+
     await db.commit()
 
     loaded = await get_recovery_request_by_id(db, recovery_req.id)
@@ -225,11 +237,28 @@ async def update_recovery_request_status(
     if update_in.verification_response is not None:
         recovery_req.verification_response = update_in.verification_response
 
-    # If completed, also resolve the underlying report
+    db.add(recovery_req)
+
+    # 1. Enqueue recovery_request.updated event
+    status_updated_event = build_recovery_request_updated_event(
+        recovery_req=recovery_req,
+        previous_status=current_status,
+        new_status=target_status,
+    )
+    await create_outbox_event(db, status_updated_event)
+
+    # 2. If completed, also resolve the underlying report and enqueue report.resolved
     if target_status == RecoveryRequestStatus.COMPLETED:
         report = await db.get(Report, recovery_req.report_id)
         if report and report.status == ReportStatus.ACTIVE:
             report.status = ReportStatus.RESOLVED
+            db.add(report)
+            report_resolved_event = build_report_resolved_event(
+                report_id=report.id,
+                resolution_reason="recovery_completed",
+                associated_recovery_request_id=recovery_req.id,
+            )
+            await create_outbox_event(db, report_resolved_event)
 
     await db.commit()
     loaded = await get_recovery_request_by_id(db, recovery_req.id)

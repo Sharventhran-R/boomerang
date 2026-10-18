@@ -11,6 +11,12 @@ from sqlalchemy.orm import selectinload
 from app.db.models import Report, ReportCategory, ReportImage, ReportStatus, ReportType
 from app.schemas.geo import GeoSearchParams
 from app.schemas.report import CreateReportRequest, UpdateReportRequest
+from app.services.outbox import (
+    build_report_created_event,
+    build_report_resolved_event,
+    build_report_updated_event,
+    create_outbox_event,
+)
 from app.services.storage import delete_image_from_s3, upload_image_to_s3
 
 
@@ -31,6 +37,16 @@ async def create_report(
         status=ReportStatus.ACTIVE,
     )
     db.add(report)
+    await db.flush()
+
+    # Enqueue report.created in the exact same database transaction
+    event = build_report_created_event(
+        report=report,
+        latitude=report_in.latitude,
+        longitude=report_in.longitude,
+    )
+    await create_outbox_event(db, event)
+
     await db.commit()
     # Explicitly query it back to have coordinates and relationships
     report_returned = await get_report_by_id(db, report.id)
@@ -63,27 +79,58 @@ async def update_report(
     report: Report,  # Must be loaded with coordinates if we return it directly
     report_in: UpdateReportRequest,
 ) -> Report:
-    if report_in.title is not None:
+    updated_fields: list[str] = []
+
+    if report_in.title is not None and report_in.title != report.title:
         report.title = report_in.title
-    if report_in.description is not None:
+        updated_fields.append("title")
+
+    if (
+        report_in.description is not None
+        and report_in.description != report.description
+    ):
         report.description = report_in.description
-    if report_in.category is not None:
+        updated_fields.append("description")
+
+    if report_in.category is not None and report_in.category != report.category:
         report.category = report_in.category
-    if report_in.event_time is not None:
+        updated_fields.append("category")
+
+    if report_in.event_time is not None and report_in.event_time != report.event_time:
         report.event_time = report_in.event_time
-    if report_in.reward_amount is not None:
+        updated_fields.append("event_time")
+
+    if (
+        report_in.reward_amount is not None
+        and report_in.reward_amount != report.reward_amount
+    ):
         report.reward_amount = report_in.reward_amount
-    if report_in.status is not None:
+        updated_fields.append("reward_amount")
+
+    status_changed_to_resolved = False
+    if report_in.status is not None and report_in.status != report.status:
         report.status = report_in.status
+        if report_in.status == ReportStatus.RESOLVED:
+            status_changed_to_resolved = True
+        else:
+            updated_fields.append("status")
+
+    new_lat: float | None = None
+    new_lon: float | None = None
+    old_lat = getattr(report, "latitude", None)
+    old_lon = getattr(report, "longitude", None)
+
     if report_in.latitude is not None and report_in.longitude is not None:
-        report.location = WKTElement(
-            f"POINT({report_in.longitude} {report_in.latitude})", srid=4326
-        )
-        report.latitude = report_in.latitude  # type: ignore
-        report.longitude = report_in.longitude  # type: ignore
+        if report_in.latitude != old_lat or report_in.longitude != old_lon:
+            report.location = WKTElement(
+                f"POINT({report_in.longitude} {report_in.latitude})", srid=4326
+            )
+            report.latitude = report_in.latitude  # type: ignore
+            report.longitude = report_in.longitude  # type: ignore
+            updated_fields.extend(["latitude", "longitude"])
+            new_lat = report_in.latitude
+            new_lon = report_in.longitude
     elif report_in.latitude is not None or report_in.longitude is not None:
-        # If only one is provided, we need the other.
-        # We already have them on the report object.
         lat = (
             report_in.latitude
             if report_in.latitude is not None
@@ -94,11 +141,40 @@ async def update_report(
             if report_in.longitude is not None
             else getattr(report, "longitude", 0)
         )
-        report.location = WKTElement(f"POINT({lon} {lat})", srid=4326)
-        report.latitude = lat  # type: ignore
-        report.longitude = lon  # type: ignore
+        if lat != old_lat or lon != old_lon:
+            report.location = WKTElement(f"POINT({lon} {lat})", srid=4326)
+            report.latitude = lat  # type: ignore
+            report.longitude = lon  # type: ignore
+            updated_fields.extend(["latitude", "longitude"])
+            new_lat = lat
+            new_lon = lon
 
     db.add(report)
+
+    # 1. Emit report.updated only for actual attribute changes
+    if updated_fields:
+        update_event = build_report_updated_event(
+            report_id=report.id,
+            updated_fields=updated_fields,
+            title=report.title,
+            description=report.description,
+            category=report.category,
+            latitude=new_lat,
+            longitude=new_lon,
+            event_time=report.event_time,
+            reward_amount=report.reward_amount,
+            status=report.status,
+        )
+        await create_outbox_event(db, update_event)
+
+    # 2. Emit report.resolved if status transitioned to RESOLVED
+    if status_changed_to_resolved:
+        resolved_event = build_report_resolved_event(
+            report_id=report.id,
+            resolution_reason="user_resolved",
+        )
+        await create_outbox_event(db, resolved_event)
+
     await db.commit()
     report_returned = await get_report_by_id(db, report.id)
     assert report_returned is not None

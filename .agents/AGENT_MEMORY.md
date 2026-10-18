@@ -593,3 +593,31 @@
     - Full pytest suite: 75 of 75 tests passed in 21.48s (0 failures, 0 errors).
     - Code quality: `ruff check .` (0 errors), `ruff format --check .` (0 errors, 43 files formatted), `mypy .` (strict passed, 0 errors across 41 source files).
     - Git safety: Strict compliance with manual Git ownership rule; zero git write commands executed.
+- 2026-10-18: Completed Phase 7.3 — Transactional Outbox & Reliable Event Publishing.
+  - Architecture & Persistence:
+    - Implemented `OutboxEvent` model in `app/db/models.py` with `OutboxStatus` enum (`PENDING`, `PROCESSING`, `PUBLISHED`, `FAILED`, `DEAD_LETTER`).
+    - Stored unique `event_id`, `event_type`, `event_version`, `aggregate_type`, `aggregate_id`, `topic`, serialized JSONB `payload` (`EventEnvelope`), occurrence/creation timestamps, `retry_count`, `max_retries`, `next_retry_at`, `published_at`, and bounded `last_error`.
+    - Added database indexes: `ix_outbox_events_status_next_retry` on `(status, next_retry_at, created_at)` and `ix_outbox_events_aggregate` on `(aggregate_type, aggregate_id)`.
+    - Created clean Alembic migration `alembic/versions/a4d442db2420_phase_7_3_outbox.py` and validated upgrade/downgrade cycles.
+  - Domain Mutation Integration:
+    - Implemented `app/services/outbox.py` with typed builders (`build_report_created_event`, `build_report_updated_event`, `build_report_resolved_event`, `build_recovery_request_created_event`, `build_recovery_request_updated_event`) and `create_outbox_event`.
+    - Integrated outbox event persistence atomically within active database transactions:
+      - `create_report`: emits `report.created` (coordinates included for matching engine).
+      - `update_report`: emits `report.updated` with explicit `updated_fields` list (only on actual changes, suppresses no-op events) and `report.resolved` on status change to `RESOLVED`.
+      - `create_recovery_request`: emits `recovery_request.created` (excludes sensitive personal info and verification responses).
+      - `update_recovery_request_status`: emits `recovery_request.updated` on status transitions; if completed and active report is resolved, emits `report.resolved` in the same transaction.
+  - Dispatcher & Kafka Delivery:
+    - Implemented `OutboxDispatcher` in `app/services/outbox_dispatcher.py` and CLI runner `scripts/run_outbox_dispatcher.py`.
+    - Safe concurrency: claims eligible rows using PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` and immediately commits `PROCESSING` status to release DB locks before Kafka network I/O.
+    - Publishes to `boomerang.domain.events` keyed by `aggregate_id` to guarantee partition-level ordering.
+    - Records success (`PUBLISHED`) or schedules retries (`FAILED`) using bounded exponential backoff with full jitter.
+    - Retains poison events exceeding `max_retries` as `DEAD_LETTER` with bounded error details, and provides `replay_dead_letter_events` for operational remediation.
+    - Reclaims stale `PROCESSING` rows if a worker process crashes mid-batch.
+  - Operations & Documentation:
+    - Authored `docs/outbox_pattern.md` specifying architecture, state transitions, at-least-once delivery semantics, consumer deduplication requirements, CLI commands, and failure recovery.
+    - Configured outbox settings in `app/core/config.py`, `.env.example`, and `.env`.
+  - Quality & Verification:
+    - Created `tests/test_outbox.py` with 12 comprehensive tests covering all 11 prompt requirements and live end-to-end Kafka roundtrip dispatch.
+    - Full pytest suite: 87 of 87 tests passed (0 failures, 0 errors).
+    - Code quality: `ruff check .` (0 errors), `ruff format --check .` (clean, 50 files formatted), `mypy .` (strict passed, 0 errors across 46 source files).
+    - Preserved repository safety: 0 Git write operations executed.
