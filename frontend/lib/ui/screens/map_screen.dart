@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../models/report_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/geocoding_service.dart';
 import '../../services/location_service.dart';
 import '../../services/map_config.dart';
 import '../../services/report_repository.dart';
@@ -31,6 +33,13 @@ class _MapScreenState extends State<MapScreen> {
   String _statusFilter = 'all'; // 'all', 'missing', 'found'
   ReportModel? _selectedMarkerReport;
   bool _isLocating = false;
+
+  Timer? _placeSearchDebounceTimer;
+  List<PlaceSearchResult> _placeSuggestions = [];
+  bool _isSearchingPlaces = false;
+  bool _showPlaceSuggestions = false;
+  LatLng? _cameraCenter;
+  bool _showSearchThisArea = false;
 
   @override
   void initState() {
@@ -79,6 +88,7 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     ReportRepository.instance.removeListener(_onReportsChanged);
     LocationService.instance.removeListener(_onLocationChanged);
+    _placeSearchDebounceTimer?.cancel();
     _mapSearchController.dispose();
     super.dispose();
   }
@@ -296,6 +306,8 @@ class _MapScreenState extends State<MapScreen> {
   void _onMapTapped(LatLng point) {
     setState(() {
       _selectedMarkerReport = null;
+      _showSearchThisArea = false;
+      _showPlaceSuggestions = false;
     });
 
     LocationService.instance.setManualLocation(
@@ -313,6 +325,258 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     _loadReportsForActiveArea();
+  }
+
+  void _onMapPositionChanged(MapCamera camera, bool hasGesture) {
+    if (!hasGesture) return;
+    _cameraCenter = camera.center;
+    final anchor = _activeAnchor;
+    if (anchor == null) {
+      if (!_showSearchThisArea) {
+        setState(() => _showSearchThisArea = true);
+      }
+    } else {
+      final double distMeters = const Distance().as(
+        LengthUnit.Meter,
+        camera.center,
+        anchor,
+      );
+      if (distMeters > 300) {
+        if (!_showSearchThisArea) {
+          setState(() => _showSearchThisArea = true);
+        }
+      } else {
+        if (_showSearchThisArea) {
+          setState(() => _showSearchThisArea = false);
+        }
+      }
+    }
+  }
+
+  Future<void> _searchThisArea() async {
+    LatLng? center = _cameraCenter;
+    try {
+      center ??= _mapController.camera.center;
+    } catch (_) {}
+    if (center == null) return;
+
+    setState(() {
+      _showSearchThisArea = false;
+    });
+
+    String label =
+        'Area [${center.latitude.toStringAsFixed(2)}, ${center.longitude.toStringAsFixed(2)}]';
+    try {
+      final addr = await GeocodingService.instance.reverseGeocode(
+        center.latitude,
+        center.longitude,
+      );
+      if (addr != null && addr.isNotEmpty) {
+        label = addr;
+      }
+    } catch (_) {}
+
+    LocationService.instance.setManualLocation(
+      latitude: center.latitude,
+      longitude: center.longitude,
+      label: label,
+    );
+
+    if (mounted) {
+      AppToast.info(
+        context,
+        message: 'Searching reports near $label.',
+        duration: const Duration(seconds: 2),
+      );
+    }
+
+    _loadReportsForActiveArea();
+  }
+
+  Widget _buildSearchThisAreaButton() {
+    return Semantics(
+      button: true,
+      label: 'Search this area for nearby reports',
+      child: Tooltip(
+        message: 'Search reports centered on current map view',
+        child: ElevatedButton.icon(
+          onPressed: _searchThisArea,
+          icon: const Icon(Icons.refresh, size: 14),
+          label: const Text(
+            'Search this area',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.2,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.actionPrimary,
+            foregroundColor: AppTheme.onActionPrimary,
+            elevation: 4,
+            shadowColor: Colors.black54,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onMapSearchChanged(String query) {
+    _placeSearchDebounceTimer?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setState(() {
+        _isSearchingPlaces = false;
+        _placeSuggestions = [];
+        _showPlaceSuggestions = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchingPlaces = true;
+      _showPlaceSuggestions = true;
+      if (_isSheetExpanded) {
+        _isSheetExpanded = false;
+      }
+    });
+
+    _placeSearchDebounceTimer = Timer(
+      const Duration(milliseconds: 350),
+      () async {
+        try {
+          final results = await GeocodingService.instance.searchPlaces(trimmed);
+          if (!mounted) return;
+          setState(() {
+            _placeSuggestions = results;
+            _isSearchingPlaces = false;
+            _showPlaceSuggestions = results.isNotEmpty;
+          });
+        } catch (_) {
+          if (!mounted) return;
+          setState(() {
+            _placeSuggestions = [];
+            _isSearchingPlaces = false;
+            _showPlaceSuggestions = false;
+          });
+        }
+      },
+    );
+  }
+
+  void _onPlaceSuggestionSelected(PlaceSearchResult place) {
+    _placeSearchDebounceTimer?.cancel();
+    _mapSearchController.text = place.shortName;
+    setState(() {
+      _showPlaceSuggestions = false;
+      _placeSuggestions = [];
+      _showSearchThisArea = false;
+    });
+
+    final target = LatLng(place.latitude, place.longitude);
+    LocationService.instance.setManualLocation(
+      latitude: place.latitude,
+      longitude: place.longitude,
+      label: place.shortName.isNotEmpty ? place.shortName : place.displayName,
+    );
+
+    try {
+      _mapController.move(target, 14.0);
+    } catch (_) {}
+
+    if (mounted) {
+      AppToast.info(
+        context,
+        message: 'Discovery area set to ${place.shortName}.',
+        duration: const Duration(seconds: 2),
+      );
+    }
+
+    _loadReportsForActiveArea();
+  }
+
+  Widget _buildPlaceSuggestionsList() {
+    if (!_showPlaceSuggestions) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      constraints: const BoxConstraints(maxHeight: 180),
+      decoration: BoxDecoration(
+        color: AppTheme.card.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(AppTheme.smallRadius),
+        border: Border.all(color: AppTheme.borderHighlight),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black87,
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: _isSearchingPlaces
+          ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppTheme.actionPrimary,
+                  ),
+                ),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: _placeSuggestions.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(color: AppTheme.borderSubtle, height: 1),
+              itemBuilder: (context, index) {
+                final place = _placeSuggestions[index];
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
+                    leading: const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: AppTheme.primaryText,
+                    ),
+                    title: Text(
+                      place.shortName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      place.displayName,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppTheme.secondaryText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => _onPlaceSuggestionSelected(place),
+                  ),
+                );
+              },
+            ),
+    );
   }
 
   void _showLocationMenu() {
@@ -569,6 +833,7 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                         const SizedBox(height: 12),
                         _buildFloatingSearchRow(),
+                        _buildPlaceSuggestionsList(),
                         const SizedBox(height: 8),
                         _buildFilterAndRadiusRow(),
                       ],
@@ -616,6 +881,14 @@ class _MapScreenState extends State<MapScreen> {
                     ],
                   ),
                 ),
+
+                if (_showSearchThisArea)
+                  Positioned(
+                    top: 24,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: _buildSearchThisAreaButton()),
+                  ),
 
                 if (_selectedMarkerReport != null)
                   Positioned(
@@ -735,10 +1008,21 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // 3. Loading Indicator
-          if (ReportRepository.instance.isLoading || _isLocating)
+          // 3. Search this area button (if panned)
+          if (_showSearchThisArea)
             Positioned(
               top: MediaQuery.of(context).padding.top + 52,
+              left: 0,
+              right: 0,
+              child: Center(child: _buildSearchThisAreaButton()),
+            ),
+
+          // 4. Loading Indicator
+          if (ReportRepository.instance.isLoading || _isLocating)
+            Positioned(
+              top:
+                  MediaQuery.of(context).padding.top +
+                  (_showSearchThisArea ? 96 : 52),
               left: 16,
               right: 16,
               child: const LinearProgressIndicator(
@@ -748,7 +1032,7 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // 4. Selected Marker Preview Banner
+          // 5. Selected Marker Preview Banner
           if (_selectedMarkerReport != null)
             Positioned(
               left: 12,
@@ -757,7 +1041,7 @@ class _MapScreenState extends State<MapScreen> {
               child: _buildSelectedMarkerPreviewCard(),
             ),
 
-          // 5. Bottom Controls Column: Filter Chips, Floating Search Bar & Expandable Nearby Reports Panel
+          // 6. Bottom Controls Column: Filter Chips, Floating Search Bar & Expandable Nearby Reports Panel
           Positioned(
             left: 12,
             right: 12,
@@ -765,6 +1049,7 @@ class _MapScreenState extends State<MapScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _buildPlaceSuggestionsList(),
                 _buildFilterAndRadiusRow(),
                 const SizedBox(height: 6),
                 _buildFloatingSearchRow(),
@@ -1104,8 +1389,15 @@ class _MapScreenState extends State<MapScreen> {
               label: 'Search map items',
               child: TextField(
                 controller: _mapSearchController,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) => _loadReportsForActiveArea(),
+                onChanged: (val) {
+                  setState(() {});
+                  _onMapSearchChanged(val);
+                },
+                onSubmitted: (_) {
+                  _placeSearchDebounceTimer?.cancel();
+                  setState(() => _showPlaceSuggestions = false);
+                  _loadReportsForActiveArea();
+                },
                 style: const TextStyle(
                   color: AppTheme.primaryText,
                   fontSize: 13,
@@ -1116,7 +1408,22 @@ class _MapScreenState extends State<MapScreen> {
                     color: AppTheme.secondaryText,
                     size: 18,
                   ),
-                  hintText: 'Search items in map view...',
+                  suffixIcon: _mapSearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            size: 16,
+                            color: AppTheme.secondaryText,
+                          ),
+                          onPressed: () {
+                            _mapSearchController.clear();
+                            _onMapSearchChanged('');
+                            setState(() {});
+                            _loadReportsForActiveArea();
+                          },
+                        )
+                      : null,
+                  hintText: 'Search items or places in map view...',
                   hintStyle: const TextStyle(
                     color: AppTheme.mutedText,
                     fontSize: 12,
@@ -1469,6 +1776,7 @@ class _MapScreenState extends State<MapScreen> {
         minZoom: MapConfig.minZoom,
         maxZoom: MapConfig.maxZoom,
         onTap: (tapPosition, point) => _onMapTapped(point),
+        onPositionChanged: _onMapPositionChanged,
       ),
       children: [
         // Monochromatic Dark Tile Layer

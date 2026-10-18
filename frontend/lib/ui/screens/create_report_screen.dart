@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import '../../models/report_model.dart';
 import '../../services/api_client.dart';
+import '../../services/geocoding_service.dart';
 import '../../services/location_service.dart';
-import '../../services/map_config.dart';
 import '../../services/report_repository.dart';
 import '../../theme.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/report_location_picker_sheet.dart';
 import '../widgets/status_label.dart';
 import 'report_details_screen.dart';
 
@@ -290,23 +289,18 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
       double? lon = double.tryParse(lonStr);
 
       if (lat == null || lon == null) {
-        if (LocationService.instance.currentLocation != null) {
-          lat = LocationService.instance.currentLocation!.latitude;
-          lon = LocationService.instance.currentLocation!.longitude;
-        } else if (ReportRepository.instance.isMockMode) {
+        if (ReportRepository.instance.isMockMode) {
           lat = 50.4501;
           lon = 30.5234;
+        } else {
+          AppToast.error(
+            context,
+            message:
+                'Please specify coordinates using GPS, Pick on Map, or manual entry.',
+          );
+          setState(() => _isSubmitting = false);
+          return;
         }
-      }
-
-      if (lat == null || lon == null) {
-        AppToast.error(
-          context,
-          message:
-              'Please specify coordinates using GPS, Pick on Map, or manual entry.',
-        );
-        setState(() => _isSubmitting = false);
-        return;
       }
 
       final created = await ReportRepository.instance.createReport(
@@ -821,6 +815,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           ),
           const SizedBox(height: 6),
           TextFormField(
+            key: const Key('create_report_title_field'),
             controller: _titleController,
             style: const TextStyle(color: AppTheme.primaryText, fontSize: 13.5),
             decoration: InputDecoration(
@@ -942,6 +937,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
           ),
           const SizedBox(height: 6),
           TextFormField(
+            key: const Key('create_report_description_field'),
             controller: _descriptionController,
             maxLines: 4,
             maxLength: 500,
@@ -1181,6 +1177,88 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               return null;
             },
           ),
+          // Confirmed location status with Change and Clear actions
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _latitudeController,
+            builder: (context, latVal, _) {
+              final hasCoords =
+                  latVal.text.trim().isNotEmpty &&
+                  _longitudeController.text.trim().isNotEmpty;
+              if (!hasCoords) return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(AppTheme.smallRadius),
+                    border: Border.all(color: AppTheme.borderSubtle),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        size: 13,
+                        color: AppTheme.actionPrimary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Confirmed: [${latVal.text}, ${_longitudeController.text}]',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.secondaryText,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _openMapLocationPicker,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(40, 24),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Change',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryText,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _latitudeController.clear();
+                            _longitudeController.clear();
+                            _locationController.clear();
+                          });
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(40, 24),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Clear',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.mutedText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 8),
 
           // GPS Location and Map Picker quick actions
@@ -1412,6 +1490,18 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 'Device Location [${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}]';
           }
         });
+
+        // Asynchronously resolve human-readable address
+        GeocodingService.instance
+            .reverseGeocode(loc.latitude, loc.longitude)
+            .then((addr) {
+              if (mounted && addr != null && addr.isNotEmpty) {
+                setState(() {
+                  _locationController.text = addr;
+                });
+              }
+            });
+
         AppToast.info(
           context,
           message: 'Coordinates populated from GPS.',
@@ -1432,185 +1522,31 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     }
   }
 
-  void _openMapLocationPicker() {
-    double tempLat =
-        double.tryParse(_latitudeController.text.trim()) ??
-        MapConfig.defaultViewportCenter.latitude;
-    double tempLon =
-        double.tryParse(_longitudeController.text.trim()) ??
-        MapConfig.defaultViewportCenter.longitude;
+  Future<void> _openMapLocationPicker() async {
+    final double? tempLat = double.tryParse(_latitudeController.text.trim());
+    final double? tempLon = double.tryParse(_longitudeController.text.trim());
+    final String currentAddress = _locationController.text.trim();
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        side: BorderSide(color: AppTheme.borderSubtle),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.75,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Select Location on Map',
-                            style: TextStyle(
-                              fontFamily: 'Hanken Grotesk',
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryText,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          color: AppTheme.secondaryText,
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(color: AppTheme.borderSubtle, height: 1),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        FlutterMap(
-                          options: MapOptions(
-                            initialCenter: LatLng(tempLat, tempLon),
-                            initialZoom: 14.0,
-                            onTap: (tapPosition, point) {
-                              setModalState(() {
-                                tempLat = point.latitude;
-                                tempLon = point.longitude;
-                              });
-                            },
-                          ),
-                          children: [
-                            TileLayer(
-                              urlTemplate: MapConfig.tileUrl,
-                              userAgentPackageName: MapConfig.userAgent,
-                              tileBuilder: MapConfig.darkTileBuilder,
-                            ),
-                            MarkerLayer(
-                              markers: [
-                                Marker(
-                                  point: LatLng(tempLat, tempLon),
-                                  width: 36,
-                                  height: 36,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: const Color(0xFF080808),
-                                      border: Border.all(
-                                        color: const Color(0xFFFFFFFF),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.location_on,
-                                        size: 18,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          top: 10,
-                          left: 16,
-                          right: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.card.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.smallRadius,
-                              ),
-                              border: Border.all(color: AppTheme.borderSubtle),
-                            ),
-                            child: Text(
-                              'Tap map to position pin: [${tempLat.toStringAsFixed(4)}, ${tempLon.toStringAsFixed(4)}]',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.primaryText,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _latitudeController.text = tempLat
-                                      .toStringAsFixed(6);
-                                  _longitudeController.text = tempLon
-                                      .toStringAsFixed(6);
-                                  if (_locationController.text.trim().isEmpty) {
-                                    _locationController.text =
-                                        'Selected Map Pin [${tempLat.toStringAsFixed(4)}, ${tempLon.toStringAsFixed(4)}]';
-                                  }
-                                });
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.actionPrimary,
-                                foregroundColor: AppTheme.onActionPrimary,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.smallRadius,
-                                  ),
-                                ),
-                              ),
-                              child: const Text(
-                                'Confirm Location',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    final result = await ReportLocationPickerSheet.show(
+      context,
+      initialLatitude: tempLat,
+      initialLongitude: tempLon,
+      initialAddress: currentAddress.isNotEmpty ? currentAddress : null,
+      isMissing: _status == ReportStatus.missing,
     );
+
+    if (result != null && mounted) {
+      setState(() {
+        _latitudeController.text = result.latitude.toStringAsFixed(6);
+        _longitudeController.text = result.longitude.toStringAsFixed(6);
+        _locationController.text = result.address;
+      });
+      AppToast.info(
+        context,
+        message: 'Incident location confirmed: ${result.address}',
+        duration: const Duration(seconds: 2),
+      );
+    }
   }
 
   Widget _buildRewardSection() {

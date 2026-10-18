@@ -24,11 +24,25 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   @override
   void initState() {
     super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
     ReportRepository.instance.addListener(_onReportsChanged);
     RecoveryRepository.instance.addListener(_onReportsChanged);
     if (!ReportRepository.instance.isMockMode &&
-        !ReportRepository.instance.hasLoaded) {
-      ReportRepository.instance.loadReports();
+        AuthService.instance.isAuthenticated) {
+      ReportRepository.instance.loadUserReports();
+    }
+  }
+
+  void _onAuthChanged() {
+    if (mounted) {
+      if (!ReportRepository.instance.isMockMode &&
+          AuthService.instance.isAuthenticated &&
+          !ReportRepository.instance.hasLoadedUserReports &&
+          !ReportRepository.instance.isLoadingUserReports &&
+          ReportRepository.instance.userReportsError == null) {
+        ReportRepository.instance.loadUserReports();
+      }
+      setState(() {});
     }
   }
 
@@ -38,6 +52,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
 
   @override
   void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
     ReportRepository.instance.removeListener(_onReportsChanged);
     RecoveryRepository.instance.removeListener(_onReportsChanged);
     super.dispose();
@@ -81,331 +96,464 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'My Reports',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                      fontFamily: 'Hanken Grotesk',
-                                      color: AppTheme.primaryText,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: -0.5,
-                                    ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Manage your reported items and active status',
-                                style: TextStyle(
-                                  color: AppTheme.secondaryText,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.card,
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.smallRadius,
-                            ),
-                            border: Border.all(color: AppTheme.borderSubtle),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: AppTheme.actionPrimary,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${allUserReports.length} ACTIVE',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                  color: AppTheme.primaryText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+        child: RefreshIndicator(
+          color: AppTheme.actionPrimary,
+          backgroundColor: AppTheme.card,
+          onRefresh: () async {
+            if (!ReportRepository.instance.isMockMode &&
+                AuthService.instance.isAuthenticated) {
+              await ReportRepository.instance.loadUserReports(
+                forceRefresh: true,
+              );
+            }
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildFilterTab(
-                            'all',
-                            'All (${allUserReports.length})',
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'My Reports',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        fontFamily: 'Hanken Grotesk',
+                                        color: AppTheme.primaryText,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Manage your reported items and active status',
+                                  style: TextStyle(
+                                    color: AppTheme.secondaryText,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          _buildFilterTab('missing', 'Missing ($missingCount)'),
-                          const SizedBox(width: 8),
-                          _buildFilterTab('found', 'Found ($foundCount)'),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.card,
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.smallRadius,
+                              ),
+                              border: Border.all(color: AppTheme.borderSubtle),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppTheme.actionPrimary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${allUserReports.length} ACTIVE',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.0,
+                                    color: AppTheme.primaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                      const SizedBox(height: 16),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterTab(
+                              'all',
+                              'All (${allUserReports.length})',
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFilterTab(
+                              'missing',
+                              'Missing ($missingCount)',
+                            ),
+                            const SizedBox(width: 8),
+                            _buildFilterTab('found', 'Found ($foundCount)'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  if (!AuthService.instance.isAuthenticated &&
-                      !ReportRepository.instance.isMockMode)
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 24),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.defaultRadius,
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    if (ReportRepository.instance.userReportsError != null &&
+                        allUserReports.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                        border: Border.all(color: AppTheme.borderSubtle),
-                      ),
-                      alignment: Alignment.center,
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.lock_outline,
-                            size: 32,
-                            color: AppTheme.secondaryText,
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.smallRadius,
                           ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Authentication Required',
-                            style: TextStyle(
-                              fontFamily: 'Hanken Grotesk',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: AppTheme.primaryText,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Log in to view and manage your verified incident reports.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 16,
                               color: AppTheme.secondaryText,
-                              fontSize: 12,
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          ElevatedButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LoginScreen(),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Sync issue: ${ReportRepository.instance.userReportsError}',
+                                style: const TextStyle(
+                                  color: AppTheme.secondaryText,
+                                  fontSize: 11,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.actionPrimary,
-                              foregroundColor: AppTheme.onActionPrimary,
+                            TextButton(
+                              onPressed: () => ReportRepository.instance
+                                  .loadUserReports(forceRefresh: true),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(40, 24),
+                              ),
+                              child: const Text(
+                                'Retry',
+                                style: TextStyle(
+                                  color: AppTheme.actionPrimary,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ),
-                            child: const Text('Log In'),
+                          ],
+                        ),
+                      ),
+                    if (!AuthService.instance.isAuthenticated &&
+                        !ReportRepository.instance.isMockMode)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 24),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.defaultRadius,
                           ),
-                        ],
-                      ),
-                    )
-                  else if (filteredReports.isEmpty)
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 24),
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(
-                          AppTheme.defaultRadius,
+                          border: Border.all(color: AppTheme.borderSubtle),
                         ),
-                        border: Border.all(color: AppTheme.borderSubtle),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'No reports matching this filter.',
-                        style: TextStyle(
-                          color: AppTheme.secondaryText,
-                          fontSize: 13,
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.lock_outline,
+                              size: 32,
+                              color: AppTheme.secondaryText,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Authentication Required',
+                              style: TextStyle(
+                                fontFamily: 'Hanken Grotesk',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: AppTheme.primaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Log in to view and manage your verified incident reports.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppTheme.secondaryText,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.actionPrimary,
+                                foregroundColor: AppTheme.onActionPrimary,
+                              ),
+                              child: const Text('Log In'),
+                            ),
+                          ],
                         ),
-                      ),
-                    )
-                  else
-                    ...filteredReports.map((r) {
-                      final hasPendingRequests = RecoveryRepository
-                          .instance
-                          .receivedRequests
-                          .any(
-                            (req) =>
-                                (req.reportId == r.id ||
-                                    (RecoveryRepository.instance.isMockMode &&
-                                        r.id == 'REP-001' &&
-                                        req.reportId == 'rep-8941')) &&
-                                req.status.toLowerCase() == 'pending',
-                          );
-                      final isPending = hasPendingRequests;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: ReportCard(
-                          title: r.title,
-                          category: '${r.category} · ${r.locationDescription}',
-                          distance: r.timeAgo,
-                          timeAgo: '',
-                          status: r.status,
-                          reward: r.reward,
-                          onTap: () => _openDetails(r),
-                          bottomActions: isPending
-                              ? Column(
-                                  children: [
-                                    InkWell(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const RecoveryRequestsScreen(),
-                                          ),
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.elevatedSurface,
-                                          borderRadius: BorderRadius.circular(
-                                            AppTheme.smallRadius,
-                                          ),
-                                          border: Border.all(
-                                            color: AppTheme.borderMuted,
-                                          ),
-                                        ),
-                                        child: const Row(
-                                          children: [
-                                            Icon(
-                                              Icons.mark_email_unread,
-                                              size: 16,
-                                              color: AppTheme.primaryText,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                '1 Pending Recovery Request',
-                                                style: TextStyle(
-                                                  color: AppTheme.primaryText,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            Icon(
-                                              Icons.chevron_right,
-                                              size: 16,
-                                              color: AppTheme.secondaryText,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildActionButton(
-                                            icon: Icons.visibility,
-                                            label: 'View Details',
-                                            color: AppTheme.elevatedSurface,
-                                            textColor: AppTheme.primaryText,
-                                            onTap: () => _openDetails(r),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: _buildActionButton(
-                                            icon: Icons.edit_note,
-                                            label: 'Edit Report',
-                                            color: AppTheme.surface,
-                                            textColor: AppTheme.secondaryText,
-                                            onTap: () {
-                                              AppToast.info(
-                                                context,
-                                                message:
-                                                    'Telemetry record #${r.id} is locked in this session.',
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                )
-                              : Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildActionButton(
-                                        icon: Icons.visibility,
-                                        label: 'View Details',
-                                        color: AppTheme.elevatedSurface,
-                                        textColor: AppTheme.primaryText,
-                                        onTap: () => _openDetails(r),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildActionButton(
-                                        icon: Icons.edit_note,
-                                        label: 'Edit Report',
-                                        color: AppTheme.surface,
-                                        textColor: AppTheme.secondaryText,
+                      )
+                    else if (ReportRepository.instance.isLoadingUserReports &&
+                        allUserReports.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 40),
+                        alignment: Alignment.center,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.actionPrimary,
+                          ),
+                        ),
+                      )
+                    else if (ReportRepository.instance.userReportsError !=
+                            null &&
+                        allUserReports.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 24),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.defaultRadius,
+                          ),
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 32,
+                              color: AppTheme.secondaryText,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Failed to load reports',
+                              style: TextStyle(
+                                fontFamily: 'Hanken Grotesk',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: AppTheme.primaryText,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              ReportRepository.instance.userReportsError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppTheme.secondaryText,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton(
+                              onPressed: () => ReportRepository.instance
+                                  .loadUserReports(forceRefresh: true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.actionPrimary,
+                                foregroundColor: AppTheme.onActionPrimary,
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (filteredReports.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 24),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.defaultRadius,
+                          ),
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'No reports matching this filter.',
+                          style: TextStyle(
+                            color: AppTheme.secondaryText,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
+                      ...filteredReports.map((r) {
+                        final hasPendingRequests = RecoveryRepository
+                            .instance
+                            .receivedRequests
+                            .any(
+                              (req) =>
+                                  (req.reportId == r.id ||
+                                      (RecoveryRepository.instance.isMockMode &&
+                                          r.id == 'REP-001' &&
+                                          req.reportId == 'rep-8941')) &&
+                                  req.status.toLowerCase() == 'pending',
+                            );
+                        final isPending = hasPendingRequests;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ReportCard(
+                            title: r.title,
+                            category:
+                                '${r.category} · ${r.locationDescription}',
+                            distance: r.timeAgo,
+                            timeAgo: '',
+                            status: r.status,
+                            reward: r.reward,
+                            onTap: () => _openDetails(r),
+                            bottomActions: isPending
+                                ? Column(
+                                    children: [
+                                      InkWell(
                                         onTap: () {
-                                          AppToast.info(
+                                          Navigator.push(
                                             context,
-                                            message:
-                                                'Telemetry record #${r.id} is locked in this session.',
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const RecoveryRequestsScreen(),
+                                            ),
                                           );
                                         },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.elevatedSurface,
+                                            borderRadius: BorderRadius.circular(
+                                              AppTheme.smallRadius,
+                                            ),
+                                            border: Border.all(
+                                              color: AppTheme.borderMuted,
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(
+                                                Icons.mark_email_unread,
+                                                size: 16,
+                                                color: AppTheme.primaryText,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  '1 Pending Recovery Request',
+                                                  style: TextStyle(
+                                                    color: AppTheme.primaryText,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.chevron_right,
+                                                size: 16,
+                                                color: AppTheme.secondaryText,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 120), // Space for bottom nav
-                ]),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildActionButton(
+                                              icon: Icons.visibility,
+                                              label: 'View Details',
+                                              color: AppTheme.elevatedSurface,
+                                              textColor: AppTheme.primaryText,
+                                              onTap: () => _openDetails(r),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: _buildActionButton(
+                                              icon: Icons.edit_note,
+                                              label: 'Edit Report',
+                                              color: AppTheme.surface,
+                                              textColor: AppTheme.secondaryText,
+                                              onTap: () {
+                                                AppToast.info(
+                                                  context,
+                                                  message:
+                                                      'Telemetry record #${r.id} is locked in this session.',
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildActionButton(
+                                          icon: Icons.visibility,
+                                          label: 'View Details',
+                                          color: AppTheme.elevatedSurface,
+                                          textColor: AppTheme.primaryText,
+                                          onTap: () => _openDetails(r),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _buildActionButton(
+                                          icon: Icons.edit_note,
+                                          label: 'Edit Report',
+                                          color: AppTheme.surface,
+                                          textColor: AppTheme.secondaryText,
+                                          onTap: () {
+                                            AppToast.info(
+                                              context,
+                                              message:
+                                                  'Telemetry record #${r.id} is locked in this session.',
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        );
+                      }),
+                    const SizedBox(height: 120), // Space for bottom nav
+                  ]),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -24,6 +24,7 @@ class ReportRepository extends ChangeNotifier {
 
   final List<ReportModel> _reports = [];
   final List<ReportModel> _userCreatedReports = [];
+  final List<ReportModel> _userReports = [];
   final Map<String, ReportModel> _cachedReportsById = {};
 
   int _localIdSequence = 100;
@@ -32,6 +33,10 @@ class ReportRepository extends ChangeNotifier {
   String? _errorMessage;
   bool _hasLoaded = false;
   bool _useMockMode = false;
+
+  bool _isLoadingUserReports = false;
+  String? _userReportsError;
+  bool _hasLoadedUserReports = false;
 
   ReportRepository._internal([this._apiClient, this._authService]) {
     if (_apiClient != null || _authService != null) {
@@ -50,9 +55,13 @@ class ReportRepository extends ChangeNotifier {
     if (auth != null) _authService = auth;
     _useMockMode = false;
     _hasLoaded = false;
+    _hasLoadedUserReports = false;
+    _isLoadingUserReports = false;
+    _userReportsError = null;
     _requestSequence++;
     _reports.clear();
     _userCreatedReports.clear();
+    _userReports.clear();
     _cachedReportsById.clear();
   }
 
@@ -62,20 +71,40 @@ class ReportRepository extends ChangeNotifier {
     final currentUserId = authService.currentUser?.id;
     final Map<String, ReportModel> userMap = {};
 
+    if (_useMockMode) {
+      for (final r in _userCreatedReports) {
+        if (r.isUserReport) {
+          userMap[r.id] = r;
+        }
+      }
+      for (final r in _reports) {
+        if (r.isUserReport) {
+          userMap[r.id] = r;
+        }
+      }
+      final list = userMap.values.toList();
+      list.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+      return List.unmodifiable(list);
+    }
+
+    for (final r in _userReports) {
+      if (currentUserId == null ||
+          r.createdByUserId == currentUserId ||
+          r.isUserReport) {
+        userMap[r.id] = r;
+      }
+    }
+
     for (final r in _userCreatedReports) {
-      if (_useMockMode && r.isUserReport) {
-        userMap[r.id] = r;
-      } else if (currentUserId != null && r.createdByUserId == currentUserId) {
-        userMap[r.id] = r;
-      } else if (r.isUserReport) {
+      if (currentUserId == null ||
+          r.createdByUserId == currentUserId ||
+          r.isUserReport) {
         userMap[r.id] = r;
       }
     }
 
     for (final r in _reports) {
-      if (_useMockMode && r.isUserReport) {
-        userMap[r.id] = r;
-      } else if (currentUserId != null && r.createdByUserId == currentUserId) {
+      if (currentUserId != null && r.createdByUserId == currentUserId) {
         userMap[r.id] = r;
       }
     }
@@ -89,6 +118,69 @@ class ReportRepository extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasLoaded => _hasLoaded;
   bool get isMockMode => _useMockMode;
+
+  bool get isLoadingUserReports => _isLoadingUserReports;
+  String? get userReportsError => _userReportsError;
+  bool get hasLoadedUserReports => _hasLoadedUserReports;
+
+  /// Fetches all reports created by the currently authenticated user from backend.
+  /// Completely independent of discovery radius and active map location.
+  Future<List<ReportModel>> loadUserReports({bool forceRefresh = false}) async {
+    if (_useMockMode) {
+      return userReports;
+    }
+
+    if (!authService.isAuthenticated) {
+      _userReports.clear();
+      _userReportsError = null;
+      _hasLoadedUserReports = false;
+      notifyListeners();
+      return [];
+    }
+
+    if (_hasLoadedUserReports && !forceRefresh && _userReports.isNotEmpty) {
+      return userReports;
+    }
+
+    _isLoadingUserReports = true;
+    _userReportsError = null;
+    notifyListeners();
+
+    try {
+      final currentUserId = authService.currentUser?.id;
+      final response = await apiClient.get(
+        '/api/v1/reports/me',
+        authenticated: true,
+      );
+
+      if (response is Map<String, dynamic> && response['items'] is List) {
+        final items = (response['items'] as List)
+            .map(
+              (item) => ReportModel.fromBackendJson(
+                item as Map<String, dynamic>,
+                currentUserId: currentUserId,
+              ),
+            )
+            .toList();
+
+        _userReports.clear();
+        _userReports.addAll(items);
+
+        for (final r in items) {
+          _cachedReportsById[r.id] = r;
+        }
+      }
+
+      _hasLoadedUserReports = true;
+      _userReportsError = null;
+    } catch (e) {
+      _userReportsError = e is ApiException ? e.message : e.toString();
+    } finally {
+      _isLoadingUserReports = false;
+      notifyListeners();
+    }
+    return userReports;
+  }
 
   double? _searchLatitude;
   double? _searchLongitude;
@@ -420,6 +512,16 @@ class ReportRepository extends ChangeNotifier {
       _cachedReportsById[finalReport.id] = finalReport;
       _userCreatedReports.removeWhere((r) => r.id == finalReport.id);
       _userCreatedReports.insert(0, finalReport);
+      _userReports.removeWhere((r) => r.id == finalReport.id);
+      _userReports.insert(0, finalReport);
+      notifyListeners();
+
+      // Synchronize with backend user reports
+      try {
+        await loadUserReports(forceRefresh: true);
+      } catch (_) {
+        // Retain local memory insertion if network refresh fails
+      }
 
       // Do NOT unconditionally prepend to nearby reports feed!
       // Refresh nearby query using active location anchor if present
@@ -499,8 +601,12 @@ class ReportRepository extends ChangeNotifier {
     _requestSequence++;
     _reports.clear();
     _userCreatedReports.clear();
+    _userReports.clear();
     _cachedReportsById.clear();
     _hasLoaded = false;
+    _hasLoadedUserReports = false;
+    _isLoadingUserReports = false;
+    _userReportsError = null;
     _errorMessage = null;
     _searchLatitude = null;
     _searchLongitude = null;
