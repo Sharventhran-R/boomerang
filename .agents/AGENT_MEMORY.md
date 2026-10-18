@@ -541,3 +541,27 @@
     - Backend suite: 32 of 32 tests passed in `pytest`.
     - Typecheck & Linting: `mypy app tests` (0 errors), `ruff check` (0 errors), `ruff format --check` (clean), `flutter analyze` (0 issues), `dart format` (clean).
     - Repository safety: Complied with manual Git ownership rule; zero git write commands executed.
+- 2026-10-18: Completed Phase 7.1 — Event Contracts and Schema Design.
+  - Scope & Architecture:
+    - Standardized Generic Envelope (`EventEnvelope[PayloadT]` in `app/schemas/events/envelope.py`):
+      - Common fields: `event_id` (UUIDv4), `event_type` (`EventType`), `event_version` (positive int, default 1), `occurred_at` (`UtcDatetime`), `producer` (non-empty string), `aggregate_id` (UUID), `aggregate_type` (`AggregateType`), `correlation_id` (optional UUID), `payload` (strongly typed Pydantic v2 model).
+      - Strict immutability and schema protection: `extra="forbid"`, `frozen=True`.
+      - Cross-field validation: verifies `event_type` namespace aligns with `aggregate_type`, and `aggregate_id` matches the entity identifier in the payload.
+    - Initial Event Contracts (v1):
+      - `report.created` (`ReportCreatedPayload` in `app/schemas/events/report.py`): includes `report_id`, `created_by_user_id`, `type` (MISSING/FOUND), `category`, `title`, `description`, `latitude`, `longitude`, `event_time`, `reward_amount` (optional, forbidden on FOUND), `status` (ACTIVE), `created_at`. Coordinates justified for spatial matching engine.
+      - `report.updated` (`ReportUpdatedPayload` in `app/schemas/events/report.py`): includes `report_id`, explicit `updated_fields` list, optional mutable fields, and `updated_at`. Enforces paired latitude/longitude updates and restricts updated field names to allowed domain set.
+      - `report.resolved` (`ReportResolvedPayload` in `app/schemas/events/report.py`): includes `report_id`, `status` (RESOLVED), `resolved_at`, optional `resolution_reason`, and optional `associated_recovery_request_id`. Omits coordinates to protect user privacy.
+      - `recovery_request.created` (`RecoveryRequestCreatedPayload` in `app/schemas/events/recovery.py`): includes `recovery_request_id`, `report_id`, `requester_id`, `recipient_id`, `status` (PENDING), optional `message`, and `created_at`. Excludes sensitive verification response and user personal credentials.
+      - `recovery_request.updated` (`RecoveryRequestUpdatedPayload` in `app/schemas/events/recovery.py`): includes `recovery_request_id`, `report_id`, `requester_id`, `recipient_id`, `previous_status`, `new_status`, and `updated_at`. Validates state machine transitions against domain rules. Strictly excludes `verification_response`.
+    - Event Parsing & Deserialization (`app/schemas/events/parser.py`):
+      - Implemented `parse_event(raw)` with typed pattern-matching dispatch.
+      - Explicit exception hierarchy: `EventError`, `UnsupportedEventVersionError` (rejects versions other than 1), `UnsupportedEventTypeError`, `EventParseError`.
+    - Specification & Guidelines (`docs/event_contracts.md`):
+      - Documented domain event definition, envelope schema, each event type and payload, field justifications, versioning rules, production immutability rationale, consumer DLQ strategies, and privacy safeguards.
+      - Explicitly documented that event contracts are not yet connected to Kafka or transactional outbox.
+  - Quality & Verification Results:
+    - Dedicated event test suite created: `tests/test_events.py` (42 tests covering envelope invariants, malformed UUID/version/timestamp rejection, payload validation, status transitions, coordinate pairs, sensitive field rejection via `extra="forbid"`, timezone conversion to UTC, JSON serialization/deserialization, and parse_event error handling).
+    - Full backend test suite (`pytest`): 74 of 74 tests passed in 20.76s (0 failures, 0 errors).
+    - Backend typing (`mypy app tests`): 0 errors across 34 source files (`mypy --strict`).
+    - Backend linting & formatting (`ruff check app tests`, `ruff format --check app tests`): 0 errors, 34 files formatted.
+    - Preserved repository safety: 0 Git write operations executed.
