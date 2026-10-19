@@ -457,7 +457,7 @@ class ReportRepository extends ChangeNotifier {
         'category': backendCat,
         'latitude': lat,
         'longitude': lon,
-        'event_time': dateTime.toIso8601String(),
+        'event_time': dateTime.toUtc().toIso8601String(),
       };
       if (parsedReward != null) {
         requestBody['reward_amount'] = parsedReward;

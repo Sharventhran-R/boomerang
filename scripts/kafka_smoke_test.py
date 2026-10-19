@@ -71,6 +71,12 @@ async def run_smoke_test(
         print(f"Probe ID          : {probe_id}")
         print("-" * 60)
 
+    def _safe_deserialize(v: bytes) -> Any:
+        try:
+            return json.loads(v.decode("utf-8"))
+        except Exception:
+            return None
+
     # Initialize consumer with earliest offset reset and unique group
     consumer = AIOKafkaConsumer(
         topic,
@@ -78,7 +84,7 @@ async def run_smoke_test(
         group_id=group_id,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        value_deserializer=_safe_deserialize,
     )
 
     producer = AIOKafkaProducer(

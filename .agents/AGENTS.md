@@ -47,6 +47,20 @@ Resolve conflicting recommendations in this order:
 4. **Session Logging**: Update `.agents/AGENT_MEMORY.md` under `# Session Log` after completing substantive milestones.
 5. **No Global Dependencies**: Use `.venv\Scripts\python.exe` for all tool executions.
 6. **Manual Git Operations**: Never execute `git` commands autonomously (like `git add`, `git commit`). Always ask the user to perform them manually.
+7. **Consumer Reliability Invariants (Mandatory Architectural Rules)**:
+   - Handler database mutations and the `ConsumerEvent` idempotency record must commit atomically.
+   - A failure to commit a Kafka offset after a successful database commit must not rerun handler side effects in the same processing retry sequence.
+   - Redelivery after a crash must be safe through the durable idempotency barrier.
+   - Offsets must advance only through contiguous, durably processed or safely quarantined records.
+   - A consumer must not commit offsets for partitions it no longer owns.
+   - Partition revocation and reassignment must update offset-tracker state safely.
+   - External side effects must not be assumed idempotent merely because database writes are deduplicated.
+   - Preserve at-least-once delivery semantics; do not claim exactly-once processing across PostgreSQL, Kafka, and external services.
+   - Quarantine and replay must remain observable, controlled, and privacy-safe.
+8. **Multi-Consumer Production Verification Requirement**:
+   - Do not claim multi-consumer rebalance behavior is fully production-verified until a live consumer-group rebalance integration test passes against an actual Kafka broker (see `.agents/AGENT_MEMORY.md` under `## Production-Readiness Checklist`). Existing mock/unit tests do not substitute for live rebalance verification.
+9. **Phase Progression Guardrail**:
+   - Do not start Phase 8 or later phases without explicit user authorization.
 
 ## Git Ownership & Repository Safety
 

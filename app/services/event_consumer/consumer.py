@@ -18,7 +18,12 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
+from aiokafka import (
+    AIOKafkaConsumer,
+    ConsumerRebalanceListener,
+    ConsumerRecord,
+    TopicPartition,
+)
 from aiokafka.structs import OffsetAndMetadata
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -119,7 +124,56 @@ class PartitionOffsetTracker:
     def __init__(self) -> None:
         self._in_flight: dict[TopicPartition, set[int]] = defaultdict(set)
         self._durable: dict[TopicPartition, set[int]] = defaultdict(set)
+        self._highest_safe: dict[TopicPartition, int] = {}
+        self._committed: dict[TopicPartition, int] = {}
+        self._assigned: set[TopicPartition] = set()
+        self._track_assignments: bool = False
         self._lock = asyncio.Lock()
+
+    def enable_assignment_tracking(self) -> None:
+        """Enables strict partition assignment tracking with rebalance listeners."""
+        self._track_assignments = True
+
+    async def assign_partition(self, topic: str, partition: int) -> None:
+        """Registers a partition as assigned to this consumer and clears prior state."""
+        async with self._lock:
+            tp = TopicPartition(topic, partition)
+            self._assigned.add(tp)
+            self._in_flight.pop(tp, None)
+            self._durable.pop(tp, None)
+            self._highest_safe.pop(tp, None)
+            self._committed.pop(tp, None)
+
+    async def revoke_partition(self, topic: str, partition: int) -> None:
+        """Revokes a partition, discarding in-flight and durable tracking state."""
+        async with self._lock:
+            tp = TopicPartition(topic, partition)
+            self._assigned.discard(tp)
+            self._in_flight.pop(tp, None)
+            self._durable.pop(tp, None)
+            self._highest_safe.pop(tp, None)
+            self._committed.pop(tp, None)
+
+    async def is_assigned(self, topic: str, partition: int) -> bool:
+        """Returns True if the partition is assigned or if tracking is disabled."""
+        async with self._lock:
+            if not self._track_assignments:
+                return True
+            return TopicPartition(topic, partition) in self._assigned
+
+    async def get_safe_contiguous_offset(
+        self, topic: str, partition: int
+    ) -> int | None:
+        """Returns highest contiguous safe offset durable but uncommitted."""
+        async with self._lock:
+            tp = TopicPartition(topic, partition)
+            safe = self._highest_safe.get(tp)
+            if safe is None:
+                return None
+            committed = self._committed.get(tp)
+            if committed is not None and safe <= committed:
+                return None
+            return safe
 
     async def mark_in_flight(self, topic: str, partition: int, offset: int) -> None:
         """Registers a message offset as currently in flight."""
@@ -132,10 +186,13 @@ class PartitionOffsetTracker:
 
         Returns:
             The highest contiguous offset that can be safely committed to Kafka,
-            or None if an earlier offset is still in flight.
+            or None if an earlier offset is still in flight or partition was revoked.
         """
         async with self._lock:
             tp = TopicPartition(topic, partition)
+            if self._track_assignments and tp not in self._assigned:
+                return None
+
             self._in_flight[tp].discard(offset)
             self._durable[tp].add(offset)
 
@@ -152,15 +209,30 @@ class PartitionOffsetTracker:
                 return None
 
             safe_offset = max(eligible)
+            self._highest_safe[tp] = max(self._highest_safe.get(tp, -1), safe_offset)
             # Prune all durable offsets up to and including safe_offset
             self._durable[tp] = {d for d in self._durable[tp] if d > safe_offset}
             return safe_offset
+
+    async def mark_committed(self, topic: str, partition: int, offset: int) -> None:
+        """Records that an offset was successfully committed to Kafka."""
+        async with self._lock:
+            tp = TopicPartition(topic, partition)
+            current = self._committed.get(tp, -1)
+            if offset > current:
+                self._committed[tp] = offset
 
     async def reset(self) -> None:
         """Clears all tracking state."""
         async with self._lock:
             self._in_flight.clear()
             self._durable.clear()
+            self._highest_safe.clear()
+            self._committed.clear()
+            self._assigned.clear()
+            self._in_flight.clear()
+            self._durable.clear()
+            self._assigned.clear()
 
     async def reset_partition(self, topic: str, partition: int) -> None:
         """Clears tracking state for a single partition."""
@@ -168,6 +240,22 @@ class PartitionOffsetTracker:
             tp = TopicPartition(topic, partition)
             self._in_flight.pop(tp, None)
             self._durable.pop(tp, None)
+            self._assigned.discard(tp)
+
+
+class _ConsumerRebalanceListener(
+    ConsumerRebalanceListener  # type: ignore[misc]
+):
+    """Bridges aiokafka rebalance callbacks to EventConsumer state management."""
+
+    def __init__(self, consumer: EventConsumer) -> None:
+        self._consumer = consumer
+
+    async def on_partitions_revoked(self, revoked: Any) -> None:
+        await self._consumer.handle_partitions_revoked(list(revoked))
+
+    async def on_partitions_assigned(self, assigned: Any) -> None:
+        await self._consumer.handle_partitions_assigned(list(assigned))
 
 
 class EventConsumer:
@@ -219,16 +307,58 @@ class EventConsumer:
         self.metrics = ConsumerMetrics()
         self._running = False
 
+    async def handle_partitions_revoked(self, revoked: list[TopicPartition]) -> None:
+        """Handles partition revocation before consumer group rebalance completes."""
+        logger.info(
+            "Consumer '%s' partitions revoked: %s",
+            self.consumer_name,
+            [f"{tp.topic}[{tp.partition}]" for tp in revoked],
+        )
+        if self.consumer is not None:
+            commit_map: dict[TopicPartition, OffsetAndMetadata] = {}
+            for tp in revoked:
+                safe_offset = await self.offset_tracker.get_safe_contiguous_offset(
+                    tp.topic, tp.partition
+                )
+                if safe_offset is not None:
+                    commit_map[tp] = OffsetAndMetadata(safe_offset + 1, "")
+            if commit_map:
+                try:
+                    await self.consumer.commit(commit_map)
+                    logger.info(
+                        "Committed safe contiguous offsets prior to revocation: %s",
+                        commit_map,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Could not commit offsets during partition revocation: %s", exc
+                    )
+
+        for tp in revoked:
+            await self.offset_tracker.revoke_partition(tp.topic, tp.partition)
+
+    async def handle_partitions_assigned(self, assigned: list[TopicPartition]) -> None:
+        """Handles partition assignment after consumer group rebalance completes."""
+        logger.info(
+            "Consumer '%s' partitions assigned: %s",
+            self.consumer_name,
+            [f"{tp.topic}[{tp.partition}]" for tp in assigned],
+        )
+        for tp in assigned:
+            await self.offset_tracker.assign_partition(tp.topic, tp.partition)
+
     async def start(self) -> None:
         """Initializes and starts the underlying AIOKafkaConsumer."""
         if self._owns_consumer and self.consumer is None:
             self.consumer = AIOKafkaConsumer(
-                *self.topics,
                 bootstrap_servers=self.bootstrap_servers,
                 group_id=self.group_id,
                 enable_auto_commit=False,
                 auto_offset_reset=self.auto_offset_reset,
             )
+            rebalance_listener = _ConsumerRebalanceListener(self)
+            self.consumer.subscribe(topics=self.topics, listener=rebalance_listener)
+            self.offset_tracker.enable_assignment_tracking()
             await self.consumer.start()
             logger.info(
                 "EventConsumer '%s' connected to %s (group: %s, topics: %s)",
@@ -251,23 +381,46 @@ class EventConsumer:
         self, topic: str, partition: int, offset: int
     ) -> int | None:
         """Manually commits highest safe contiguous offset after durable outcome."""
+        if not await self.offset_tracker.is_assigned(topic, partition):
+            logger.warning(
+                "Consumer '%s' partition %s[%d] revoked; skipping commit for %d.",
+                self.consumer_name,
+                topic,
+                partition,
+                offset,
+            )
+            return None
+
         safe_offset = await self.offset_tracker.mark_durable(topic, partition, offset)
         if safe_offset is not None and self.consumer is not None:
             tp = TopicPartition(topic, partition)
+            if not await self.offset_tracker.is_assigned(topic, partition):
+                logger.warning(
+                    "Consumer '%s' partition %s[%d] revoked; skipping commit %d.",
+                    self.consumer_name,
+                    topic,
+                    partition,
+                    safe_offset,
+                )
+                return None
             # In Kafka, commit offset is the next message to read (offset + 1)
             await self.consumer.commit({tp: OffsetAndMetadata(safe_offset + 1, "")})
+            await self.offset_tracker.mark_committed(topic, partition, safe_offset)
         return safe_offset
+
+    async def get_event_status(self, event_id: uuid.UUID) -> ConsumerEventStatus | None:
+        """Retrieves the current processing status for this consumer and event."""
+        async with self.session_factory() as session:
+            stmt = select(ConsumerEvent.status).where(
+                ConsumerEvent.consumer_name == self.consumer_name,
+                ConsumerEvent.event_id == event_id,
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
 
     async def is_event_completed(self, event_id: uuid.UUID) -> bool:
         """Checks if this consumer has already successfully processed this event."""
-        async with self.session_factory() as session:
-            stmt = select(ConsumerEvent.id).where(
-                ConsumerEvent.consumer_name == self.consumer_name,
-                ConsumerEvent.event_id == event_id,
-                ConsumerEvent.status == ConsumerEventStatus.COMPLETED,
-            )
-            result = await session.execute(stmt)
-            return result.scalar_one_or_none() is not None
+        return (await self.get_event_status(event_id)) == ConsumerEventStatus.COMPLETED
 
     async def record_quarantine(
         self,
@@ -276,7 +429,7 @@ class EventConsumer:
         offset: int,
         error_category: ErrorCategory,
         error_message: str,
-        raw_payload: dict[str, Any] | None = None,
+        raw_payload: Any = None,
         event: BoomerangEvent | None = None,
         retry_count: int = 0,
     ) -> ConsumerEvent:
@@ -288,8 +441,10 @@ class EventConsumer:
             aggregate_type = event.aggregate_type.value
             aggregate_id = event.aggregate_id
         else:
+            is_dict = isinstance(raw_payload, dict)
+
             extracted_event_id: uuid.UUID | None = None
-            if raw_payload and "event_id" in raw_payload:
+            if is_dict and "event_id" in raw_payload:
                 try:
                     extracted_event_id = (
                         uuid.UUID(str(raw_payload["event_id"]))
@@ -301,7 +456,7 @@ class EventConsumer:
             event_id = extracted_event_id or uuid.uuid4()
 
             extracted_agg_id: uuid.UUID | None = None
-            if raw_payload and "aggregate_id" in raw_payload:
+            if is_dict and "aggregate_id" in raw_payload:
                 try:
                     extracted_agg_id = (
                         uuid.UUID(str(raw_payload["aggregate_id"]))
@@ -313,13 +468,11 @@ class EventConsumer:
             aggregate_id = extracted_agg_id or uuid.UUID(int=0)
 
             event_type = (
-                str(raw_payload.get("event_type", "unknown"))
-                if raw_payload
-                else "unknown"
+                str(raw_payload.get("event_type", "unknown")) if is_dict else "unknown"
             )
             aggregate_type = (
                 str(raw_payload.get("aggregate_type", "unknown"))
-                if raw_payload
+                if is_dict
                 else "unknown"
             )
 
@@ -335,6 +488,13 @@ class EventConsumer:
             ).scalar_one_or_none()
 
             if existing:
+                if existing.status == ConsumerEventStatus.COMPLETED:
+                    logger.info(
+                        "Event %s was already completed by concurrent worker. "
+                        "Retaining COMPLETED status.",
+                        event_id,
+                    )
+                    return existing
                 existing.status = ConsumerEventStatus.QUARANTINED
                 existing.retry_count = retry_count
                 existing.error_category = error_category.value
@@ -363,8 +523,38 @@ class EventConsumer:
                 created_at=now,
                 updated_at=now,
             )
-            session.add(record)
-            await session.commit()
+            try:
+                session.add(record)
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                existing = (
+                    await session.execute(
+                        select(ConsumerEvent).where(
+                            ConsumerEvent.consumer_name == self.consumer_name,
+                            ConsumerEvent.event_id == event_id,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    if existing.status == ConsumerEventStatus.COMPLETED:
+                        logger.info(
+                            "Event %s was already completed by concurrent worker. "
+                            "Retaining COMPLETED status.",
+                            event_id,
+                        )
+                        return existing
+                    existing.status = ConsumerEventStatus.QUARANTINED
+                    existing.retry_count = retry_count
+                    existing.error_category = error_category.value
+                    existing.last_error = _sanitize_error_message(error_message)
+                    existing.updated_at = now
+                    session.add(existing)
+                    await session.commit()
+                    self.metrics.quarantined += 1
+                    return existing
+                raise
+
             self.metrics.quarantined += 1
             return record
 
@@ -379,7 +569,7 @@ class EventConsumer:
         await self.offset_tracker.mark_in_flight(topic, partition, offset)
 
         # 1. Parse raw Kafka message bytes
-        raw_dict: dict[str, Any] | None = None
+        raw_dict: Any = None
         try:
             raw_text = (
                 record.value.decode("utf-8")
@@ -468,7 +658,8 @@ class EventConsumer:
             return ConsumerProcessingResult.QUARANTINED
 
         # 3. Check Idempotency Barrier
-        if await self.is_event_completed(event.event_id):
+        existing_status = await self.get_event_status(event.event_id)
+        if existing_status == ConsumerEventStatus.COMPLETED:
             logger.info(
                 "Consumer '%s' skipping duplicate event %s (%s)",
                 self.consumer_name,
@@ -478,6 +669,15 @@ class EventConsumer:
             self.metrics.duplicates_skipped += 1
             await self.commit_offset(topic, partition, offset)
             return ConsumerProcessingResult.DUPLICATE_SKIPPED
+        if existing_status == ConsumerEventStatus.QUARANTINED:
+            logger.info(
+                "Consumer '%s' skipping redelivered quarantined event %s (%s)",
+                self.consumer_name,
+                event.event_id,
+                event.event_type,
+            )
+            await self.commit_offset(topic, partition, offset)
+            return ConsumerProcessingResult.QUARANTINED
 
         # 4. Handler Lookup
         handlers = self.registry.get_handlers(event.event_type)
@@ -502,6 +702,7 @@ class EventConsumer:
                     status=ConsumerEventStatus.COMPLETED,
                     retry_count=0,
                     max_retries=self.max_retries,
+                    payload=raw_dict if isinstance(raw_dict, dict) else None,
                     processed_at=now,
                     created_at=now,
                     updated_at=now,
@@ -516,6 +717,7 @@ class EventConsumer:
 
         # 5. Execute Handlers within Atomic Database Transaction with Bounded Retry
         last_exception: Exception | None = None
+        db_committed = False
         for attempt in range(1, self.max_retries + 1):
             try:
                 now = datetime.now(UTC)
@@ -538,7 +740,7 @@ class EventConsumer:
                             status=ConsumerEventStatus.COMPLETED,
                             retry_count=attempt - 1,
                             max_retries=self.max_retries,
-                            payload=raw_dict,
+                            payload=raw_dict if isinstance(raw_dict, dict) else None,
                             processed_at=now,
                             created_at=now,
                             updated_at=now,
@@ -546,24 +748,38 @@ class EventConsumer:
                         session.add(consumer_event_record)
 
                 # DB commit succeeded atomically!
+                db_committed = True
                 self.metrics.successes += 1
-                await self.commit_offset(topic, partition, offset)
-                return ConsumerProcessingResult.SUCCESS
+                break
 
             except IntegrityError:
                 # Concurrent worker already committed this exact key
                 logger.info(
-                    "Concurrent processing for event %s. Checking completed status.",
+                    "Concurrent processing for event %s. Checking terminal status.",
                     event.event_id,
                 )
-                if await self.is_event_completed(event.event_id):
+                terminal_status = await self.get_event_status(event.event_id)
+                if terminal_status == ConsumerEventStatus.COMPLETED:
                     self.metrics.duplicates_skipped += 1
                     await self.commit_offset(topic, partition, offset)
                     return ConsumerProcessingResult.DUPLICATE_SKIPPED
-                # If not completed, fall through to retry
+                if terminal_status == ConsumerEventStatus.QUARANTINED:
+                    await self.commit_offset(topic, partition, offset)
+                    return ConsumerProcessingResult.QUARANTINED
+
+                # If not completed, fall through to retry with jittered backoff
                 last_exception = IntegrityError(
                     "Concurrent collision", params=None, orig=Exception()
                 )
+                self.metrics.retries += 1
+                if attempt < self.max_retries:
+                    delay = calculate_consumer_backoff(
+                        attempt=attempt,
+                        initial_delay=self.initial_retry_delay,
+                        max_delay=self.max_retry_delay,
+                        multiplier=self.backoff_multiplier,
+                    )
+                    await asyncio.sleep(delay)
 
             except Exception as exc:
                 last_exception = exc
@@ -584,25 +800,31 @@ class EventConsumer:
                     )
                     await asyncio.sleep(delay)
 
-        # 6. Retry Exhaustion -> Quarantine
-        logger.error(
-            "Event %s exhausted max retries (%d). Quarantining: %s",
-            event.event_id,
-            self.max_retries,
-            last_exception,
-        )
-        await self.record_quarantine(
-            topic=topic,
-            partition=partition,
-            offset=offset,
-            error_category=ErrorCategory.HANDLER_ERROR,
-            error_message=str(last_exception),
-            raw_payload=raw_dict,
-            event=event,
-            retry_count=self.max_retries,
-        )
+        if not db_committed:
+            # 6. Retry Exhaustion -> Quarantine
+            logger.error(
+                "Event %s exhausted max retries (%d). Quarantining: %s",
+                event.event_id,
+                self.max_retries,
+                last_exception,
+            )
+            await self.record_quarantine(
+                topic=topic,
+                partition=partition,
+                offset=offset,
+                error_category=ErrorCategory.HANDLER_ERROR,
+                error_message=str(last_exception),
+                raw_payload=raw_dict,
+                event=event,
+                retry_count=self.max_retries,
+            )
+            await self.commit_offset(topic, partition, offset)
+            return ConsumerProcessingResult.QUARANTINED
+
+        # 6. Post-DB Commit Offset Commitment
+        # DB transaction is already committed. Handler side-effects MUST NOT re-run.
         await self.commit_offset(topic, partition, offset)
-        return ConsumerProcessingResult.QUARANTINED
+        return ConsumerProcessingResult.SUCCESS
 
     async def replay_quarantined_event(self, event_id: uuid.UUID) -> bool:
         """Explicit operator action to reprocess a quarantined event."""

@@ -36,6 +36,15 @@ from app.schemas.events import (
 PRODUCER_NAME: str = "boomerang-backend"
 
 
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    """Normalizes a datetime to UTC, converting naive timestamps to UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
 def build_report_created_event(
     report: Report,
     latitude: float,
@@ -43,6 +52,8 @@ def build_report_created_event(
     correlation_id: uuid.UUID | None = None,
 ) -> ReportCreatedEvent:
     now = datetime.now(UTC)
+    event_time_utc = _ensure_utc(report.event_time) or now
+    created_at_utc = _ensure_utc(report.created_at) or now
     payload = ReportCreatedPayload(
         report_id=report.id,
         created_by_user_id=report.created_by_user_id,
@@ -52,10 +63,10 @@ def build_report_created_event(
         description=report.description,
         latitude=latitude,
         longitude=longitude,
-        event_time=report.event_time,
+        event_time=event_time_utc,
         reward_amount=report.reward_amount,
         status=ReportStatus.ACTIVE,
-        created_at=report.created_at or now,
+        created_at=created_at_utc,
     )
     return ReportCreatedEvent(
         event_id=uuid.uuid4(),
@@ -84,6 +95,7 @@ def build_report_updated_event(
     correlation_id: uuid.UUID | None = None,
 ) -> ReportUpdatedEvent:
     now = datetime.now(UTC)
+    event_time_utc = _ensure_utc(event_time) if "event_time" in updated_fields else None
     payload = ReportUpdatedPayload(
         report_id=report_id,
         updated_fields=updated_fields,
@@ -92,7 +104,7 @@ def build_report_updated_event(
         category=category if "category" in updated_fields else None,
         latitude=latitude if "latitude" in updated_fields else None,
         longitude=longitude if "longitude" in updated_fields else None,
-        event_time=event_time if "event_time" in updated_fields else None,
+        event_time=event_time_utc,
         reward_amount=reward_amount if "reward_amount" in updated_fields else None,
         status=status if "status" in updated_fields else None,
         updated_at=now,
@@ -142,6 +154,7 @@ def build_recovery_request_created_event(
     correlation_id: uuid.UUID | None = None,
 ) -> RecoveryRequestCreatedEvent:
     now = datetime.now(UTC)
+    created_at_utc = _ensure_utc(recovery_req.created_at) or now
     payload = RecoveryRequestCreatedPayload(
         recovery_request_id=recovery_req.id,
         report_id=recovery_req.report_id,
@@ -149,7 +162,7 @@ def build_recovery_request_created_event(
         recipient_id=recovery_req.recipient_id,
         status=RecoveryRequestStatus.PENDING,
         message=recovery_req.message,
-        created_at=recovery_req.created_at or now,
+        created_at=created_at_utc,
     )
     return RecoveryRequestCreatedEvent(
         event_id=uuid.uuid4(),

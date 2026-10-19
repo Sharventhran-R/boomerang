@@ -537,6 +537,87 @@ async def test_concurrent_worker_claiming_skip_locked() -> None:
 
 
 @pytest.mark.asyncio
+async def test_true_concurrent_dispatcher_skip_locked_with_held_lock() -> None:
+    """Verifies that while Worker 1 holds active FOR UPDATE row locks in an open
+    transaction, Worker 2's claim_batch immediately skips the locked rows and
+    claims remaining rows without blocking or deadlocking.
+    """
+    dispatcher = OutboxDispatcher(producer=AsyncMock())
+    # Drain pre-existing pending rows to isolate test rows
+    for _ in range(20):
+        drained = await dispatcher.claim_batch(batch_size=50)
+        if not drained:
+            break
+
+    ids = [uuid.uuid4() for _ in range(4)]
+    async with AsyncSessionLocal() as session:
+        for ev_id in ids:
+            session.add(
+                OutboxEvent(
+                    event_id=ev_id,
+                    event_type="report.created",
+                    event_version=1,
+                    aggregate_type="report",
+                    aggregate_id=uuid.uuid4(),
+                    topic="test.events",
+                    payload={"idx": str(ev_id)},
+                    status=OutboxStatus.PENDING,
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+        await session.commit()
+
+    now = datetime.now(UTC)
+
+    # 1. Worker 1 opens an explicit transaction and holds FOR UPDATE row locks
+    async with AsyncSessionLocal() as session_1:
+        stmt_1 = (
+            select(OutboxEvent)
+            .where(
+                OutboxEvent.status == OutboxStatus.PENDING,
+                OutboxEvent.event_id.in_(ids),
+            )
+            .order_by(OutboxEvent.created_at.asc())
+            .limit(2)
+            .with_for_update(skip_locked=True)
+        )
+        res_1 = await session_1.execute(stmt_1)
+        worker_1_rows = list(res_1.scalars().all())
+        assert len(worker_1_rows) == 2
+        worker_1_ids = {r.event_id for r in worker_1_rows}
+
+        # 2. Worker 2 calls claim_batch WHILE Worker 1 holds open transaction
+        worker_2_rows = await dispatcher.claim_batch(batch_size=2)
+        worker_2_ids = {r.event_id for r in worker_2_rows}
+
+        # Worker 2 must have skipped Worker 1's locked rows and claimed disjoint rows
+        assert len(worker_2_rows) == 2
+        assert worker_1_ids.isdisjoint(worker_2_ids)
+        assert worker_2_ids.issubset(set(ids))
+
+        # Complete Worker 1's claim
+        for r in worker_1_rows:
+            r.status = OutboxStatus.PROCESSING
+            r.updated_at = now
+        await session_1.commit()
+
+    # Verify all 4 are now in PROCESSING status
+    async with AsyncSessionLocal() as session:
+        all_rows = list(
+            (
+                await session.execute(
+                    select(OutboxEvent).where(OutboxEvent.event_id.in_(ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(all_rows) == 4
+        for r in all_rows:
+            assert r.status == OutboxStatus.PROCESSING
+
+
+@pytest.mark.asyncio
 async def test_outbox_payload_privacy_safety(client: AsyncClient) -> None:
     """10. Verifies outbox events strictly exclude sensitive credentials."""
     headers_a = await register_user(client, "Privacy User A")
@@ -687,9 +768,18 @@ async def test_real_kafka_outbox_dispatch(client: AsyncClient) -> None:
     await dispatcher.start()
 
     try:
-        # Process the batch with real Kafka producer
-        processed = await dispatcher.process_batch(batch_size=10)
-        assert processed >= 1
+        # Process batches until the target event is claimed and published
+        for _ in range(20):
+            p = await dispatcher.process_batch(batch_size=50)
+            async with AsyncSessionLocal() as session:
+                updated_ev = await session.get(OutboxEvent, ev.id)
+                if (
+                    updated_ev is not None
+                    and updated_ev.status == OutboxStatus.PUBLISHED
+                ):
+                    break
+            if p == 0:
+                break
 
         # Assert outbox row is now PUBLISHED in database
         async with AsyncSessionLocal() as session:
@@ -703,8 +793,13 @@ async def test_real_kafka_outbox_dispatch(client: AsyncClient) -> None:
         async for msg in consumer:
             import json
 
-            payload = json.loads(msg.value.decode("utf-8"))
-            if payload.get("event_id") == str(target_event_id):
+            try:
+                payload = json.loads(msg.value.decode("utf-8"))
+            except Exception:
+                continue
+            if isinstance(payload, dict) and payload.get("event_id") == str(
+                target_event_id
+            ):
                 assert payload["event_type"] == "report.created"
                 assert payload["aggregate_id"] == str(report_id)
                 found = True
@@ -1029,3 +1124,57 @@ async def test_recovery_completion_on_already_resolved_report_no_duplicate_event
         )
         assert len(events) == 1
         assert events[0].payload["payload"]["resolution_reason"] == "user_resolved"
+
+
+@pytest.mark.asyncio
+async def test_outbox_event_creation_with_naive_datetime(
+    client: AsyncClient,
+) -> None:
+    """17. Verifies naive datetimes are safely normalized to UTC in outbox events."""
+    # 1. Direct unit test of event builder with naive event_time
+    naive_dt = datetime(2026, 10, 18, 10, 30, 0)
+    rep = Report(
+        id=uuid.uuid4(),
+        created_by_user_id=uuid.uuid4(),
+        type=ReportType.MISSING,
+        title="Naive Timestamp Item",
+        description="Testing naive datetime normalization",
+        category=ReportCategory.ELECTRONICS,
+        location="POINT(10.0 20.0)",
+        event_time=naive_dt,
+        status=ReportStatus.ACTIVE,
+    )
+    ev = build_report_created_event(report=rep, latitude=20.0, longitude=10.0)
+    assert ev.payload.event_time.tzinfo is not None
+    assert ev.payload.event_time == naive_dt.replace(tzinfo=UTC)
+
+    # 2. Integration test via API: send ISO string without timezone
+    # (e.g. from mobile client)
+    headers = await register_user(client, "Naive DT Tester")
+    res = await client.post(
+        "/api/v1/reports",
+        headers=headers,
+        json={
+            "type": "MISSING",
+            "title": "Mobile Naive Time Report",
+            "description": "Created from client without Z offset",
+            "category": "KEYS",
+            "latitude": 45.0,
+            "longitude": -93.0,
+            "event_time": "2026-10-18T14:15:30.555000",
+        },
+    )
+    assert res.status_code == 201
+    report_id = uuid.UUID(res.json()["id"])
+
+    async with AsyncSessionLocal() as session:
+        outbox_row = (
+            await session.execute(
+                select(OutboxEvent).where(OutboxEvent.aggregate_id == report_id)
+            )
+        ).scalar_one_or_none()
+        assert outbox_row is not None
+        assert outbox_row.status == OutboxStatus.PENDING
+        parsed = parse_event(outbox_row.payload)
+        assert isinstance(parsed.payload, ReportCreatedPayload)
+        assert parsed.payload.event_time.tzinfo is not None

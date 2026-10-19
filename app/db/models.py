@@ -366,7 +366,7 @@ class ConsumerEvent(Base):
 
     error_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    payload: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
 
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

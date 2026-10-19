@@ -1,18 +1,60 @@
 # Project Memory
 
 ## Current State
-- Initialized Python backend setup with FastAPI, SQLAlchemy, PostgreSQL, PostGIS, aiokafka, and JWT authentication.
-- Configured Ruff for linting and formatting.
-- Configured mypy for strict type checking.
-- Configured pytest for testing.
+- Backend setup operational with FastAPI, SQLAlchemy 2.x, PostgreSQL 16 / PostGIS 3.4, Apache Kafka 3.8, MinIO object storage, and JWT authentication.
+- Configured Ruff for linting and formatting; mypy for strict type checking; pytest for testing.
+- Frontend Flutter mobile + web client configured with dark theme, responsive layouts, and REST integration.
+- Phase 7 Acceptance & Reliability Hardening Status (Agent-Reported):
+  - Phase 7.1: Versioned domain event contracts validated across all 5 events (`report.created`, `report.updated`, `report.resolved`, `recovery_request.created`, `recovery_request.updated`).
+  - Phase 7.2: Local Kafka infrastructure validated with multi-partition topic (`boomerang.domain.events`) and persistent storage.
+  - Phase 7.3: Transactional outbox operational with atomic DB writes, `SKIP LOCKED` batch claiming, retries, dead-letter handling, and replay.
+  - Phase 7.4: Event consumer foundation operational with idempotency barriers, bounded retries, privacy-safe quarantine, operator replay, and contiguous offset tracking.
+  - Phase 7.5: Acceptance audit and reliability hardening completed:
+    - Consumer retry boundary hardened: Kafka offset-commit failures cannot rerun handler side effects after a successful database commit in the same processing attempt sequence.
+    - Partition rebalance safety implemented: `ConsumerRebalanceListener` and dynamic partition assignment/revocation tracking added.
+  - Latest Reported Verification Results (Agent-Reported, Not Independently Verified Facts):
+    - Full backend test suite: 120 passed in 50.37s.
+    - Live acceptance E2E suite (`test_phase7_acceptance_e2e.py`): 6 passed in 16.67s.
+    - Static analysis & quality gates: Ruff check (0 errors), Ruff format (58 files formatted), strict mypy (clean across 53 source files), Alembic check (clean, 0 unmanaged schema drift).
+    - Frontend quality gates: `flutter analyze` (0 issues), all unit and widget tests passing.
+
+## Production-Readiness Checklist
+- [x] Phase 7.1 — Versioned domain event contracts.
+- [x] Phase 7.2 — Local Kafka infrastructure.
+- [x] Phase 7.3 — Transactional outbox, retries, dead-letter handling, and replay.
+- [x] Phase 7.4 — Consumer foundation, idempotency, quarantine, replay, and contiguous offset tracking.
+- [x] Phase 7.5 — Acceptance audit, consumer retry boundary hardening, and rebalance listener integration.
+- [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
+  Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
+  1. Start two consumer instances using the same consumer group and topic.
+  2. Confirm partition assignments and trigger an actual group rebalance.
+  3. Include a record that is being processed or has durable processing state during revocation.
+  4. Verify revoked partitions are not committed unsafely.
+  5. Verify safe contiguous offsets are handled correctly during revocation.
+  6. Verify reassigned partitions resume without losing events or duplicating durable handler effects.
+  7. Verify the consumers recover correctly after commit failures or redelivery where applicable.
+  8. Clean up consumers, database fixtures, and test resources.
+
+  *Execution guidelines:* Use deterministic synchronization and bounded timeouts. Avoid flaky arbitrary sleeps wherever possible.
+  *Policy:* Do not claim multi-consumer rebalance behavior is fully production-verified until this test passes. Existing mocked/unit tests are useful but are not substitutes for a live group-rebalance test.
 
 ## Architectural Decisions
 - Backend: Python 3.12+, FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, PostGIS, Pydantic v2.
 - Messaging: Apache Kafka (aiokafka).
-- Frontend: Flutter, Dart (to be implemented).
+- Frontend: Flutter, Dart (Flutter Web, Android, iOS).
 - Environment: Project-local `.venv`.
 - Guardrails: Strict type checking, no untyped variables, minimal diffs, mandatory tests before task completion.
 - Git: Git operations are strictly developer-controlled (the agent must never modify repository history or staging state).
+- Consumer Reliability Invariants (Mandatory Architectural Rules):
+  - Handler database mutations and the `ConsumerEvent` idempotency record must commit atomically in the same database transaction.
+  - A failure to commit a Kafka offset after a successful database commit must not rerun handler side effects in the same processing retry sequence.
+  - Redelivery after a crash must be safe through the durable idempotency barrier.
+  - Offsets must advance only through contiguous, durably processed or safely quarantined records.
+  - A consumer must not commit offsets for partitions it no longer owns.
+  - Partition revocation and reassignment must update offset-tracker state safely.
+  - External side effects must not be assumed idempotent merely because database writes are deduplicated.
+  - Preserve at-least-once delivery semantics; do not claim exactly-once processing across PostgreSQL, Kafka, and external services.
+  - Quarantine and replay must remain observable, controlled, and privacy-safe.
 
 ## Session Log
 - 2026-10-02: Initialized agentic workflow guardrails.
@@ -665,4 +707,73 @@
     - Code quality: `ruff check .` (0 errors), `ruff format --check .` (clean across 57 files), `mypy .` (strict passed, 0 errors across 52 source files).
     - Database & Alembic: `alembic check` verified clean (code 0).
     - Repository safety: Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-18: Completed Event Consumer Audit & Hardening (`consumer.py`).
+  - Forensic Code Audit & Confirmed Defects Fixed:
+    1. Poison Message Crash on Non-Dict JSON: In `app/services/event_consumer/consumer.py`, when a Kafka message contains valid JSON that is not an object (e.g. JSON array `[1, 2, 3]`, raw string `"..."`, number `123`, boolean `true`), `json.loads` succeeds but `parse_event` raises `EventParseError`. In `record_quarantine`, dict lookups (`raw_payload.get(...)` and `"event_id" in raw_payload`) previously caused `AttributeError: 'list' object has no attribute 'get'` or `TypeError: string indices must be integers`, escaping `process_record` and crashing the consumer loop. Fixed by guarding with `isinstance(raw_payload, dict)` and accepting `raw_payload: Any = None`.
+    2. Idempotency Barrier on Redelivered Quarantined Events: If Kafka redelivered an event that had already reached `QUARANTINED` status, the consumer previously re-ran handlers, hit an `IntegrityError` upon inserting into `consumer_events` due to the unique constraint `(consumer_name, event_id)`, and overwrote the original failure reason with `Concurrent collision`. Added `get_event_status` and updated Step 3 to fast-skip already-quarantined events (`ConsumerProcessingResult.QUARANTINED`), acknowledging the offset without re-running handlers.
+    3. Concurrency Race Resilience: Added `IntegrityError` rollback/recovery inside `record_quarantine` and terminal status inspection in Step 5 concurrency handling with jittered backoff.
+    4. Diagnostic Payload Tracking: Added `payload=raw_dict` persistence for ignored events (known event types with no registered handler).
+  - Model & Typing Adjustments:
+    - Updated `ConsumerEvent.payload` in `app/db/models.py` from `dict[str, Any] | None` to `Any | None` to accurately reflect PostgreSQL `JSONB` support for arbitrary JSON structures.
+  - Test Suite & Regression Coverage:
+    - Added `test_non_dict_json_payload_quarantined_and_offset_committed` and `test_redelivered_quarantined_event_skips_handlers_and_commits_offset` to `tests/test_event_consumer.py`.
+    - Consumer test suite: 15 of 15 passed in 8.51s.
+    - Full backend test suite: 106 of 106 passed in 96.66s (0 failures, 0 errors).
+    - Code quality: `ruff check .` (0 errors), `ruff format --check .` (57 files clean), `mypy .` (strict passed, 0 errors across 52 source files).
+    - Repository safety: Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-19: Completed Boomerang Phase 7.5 Full Audit & Acceptance Testing.
+  - Audit Scope & Verification:
+    - Phase 7.1: Validated all 5 versioned event contracts (`report.created`, `report.updated`, `report.resolved`, `recovery_request.created`, `recovery_request.updated`), envelope constraints, UTC normalization, and strict PII/secret omission.
+    - Phase 7.2: Verified local Kafka infrastructure, 3 partitions on `boomerang.domain.events`, replication factor 1, consumer/producer connectivity, and data persistence across controlled container restarts.
+    - Phase 7.3: Verified Transactional Outbox atomicity, `SKIP LOCKED` batch claiming, retry limits, backoff with jitter, dead-letter transitions, and at-least-once recovery.
+    - Phase 7.4: Verified Event Consumer foundation, auto-commit disabled, contiguous partition offset tracking, idempotency barriers, quarantine mechanics, and operator replay.
+    - Phase 7.5: Created and verified live end-to-end acceptance suite (`tests/test_phase7_acceptance_e2e.py`) driving all 5 event types through the complete distributed pipeline (API -> PostgreSQL -> Outbox -> Dispatcher -> Kafka -> Consumer -> ConsumerEvent).
+  - Confirmed Defects Identified & Resolved:
+    1. Naive Datetime Rejection in Outbox Builders (`app/services/outbox.py`): When clients post timestamps without explicit timezone offsets (e.g. Flutter mobile client sending `DateTime.now().toIso8601String()`), `ReportCreatedPayload` raised `ValidationError: Timestamp must be timezone-aware (e.g. UTC)`, resulting in HTTP 500 errors on report creation/updating. Fixed by adding `_ensure_utc` helper in `app/services/outbox.py` to safely normalize naive datetimes to UTC before payload construction, and updated `frontend/lib/services/report_repository.dart` to use `toUtc().toIso8601String()`.
+    2. Overwriting `COMPLETED` Status in Quarantine Race (`app/services/event_consumer/consumer.py`): In `record_quarantine`, both initial lookup and `IntegrityError` collision handling previously overwrote existing records with `QUARANTINED`. If a concurrent worker had already finished and marked the event `COMPLETED`, this demoted a successful event to quarantine. Fixed by checking `existing.status == ConsumerEventStatus.COMPLETED` and returning early without overwriting.
+    3. Non-JSON Exception in Test Diagnostic Consumers (`scripts/kafka_smoke_test.py` & `tests/test_outbox.py`): Consumers with raw `json.loads` deserializers crashed when reading topics containing intentionally malformed test payloads. Added safe deserializer handling.
+  - Quality Gates & Test Suite Results:
+    - Backend Pytest Suite: 113 of 113 passed in 52.14s (0 failures, 0 errors).
+    - Flutter Test Suite: 152 of 152 passed in 28s (including live backend smoke tests).
+    - Code Quality: `ruff check .` (0 errors), `ruff format --check .` (58 files formatted), `mypy .` (strict passed across 53 source files).
+    - Frontend Code Quality: `flutter analyze` (0 issues), `dart format` (44 files clean).
+    - Database & Migrations: `alembic check` clean (no unmanaged schema drift).
+    - Repository Safety: Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-19: Completed Phase 7.5 Final Evidence Audit.
+  - Audit Scope & Disentanglement:
+    - Mapped every claimed acceptance result across Phase 7.1-7.5 to exact executable tests in `tests/test_phase7_acceptance_e2e.py`, `tests/test_event_consumer.py`, and `tests/test_outbox.py`.
+    - Disentangled helper/mock tests from actual distributed guarantees, identifying 5 specific areas previously inferred rather than directly tested.
+  - Regression & Integration Tests Added:
+    1. Kafka Offset Commit Failure After Database Commit (`tests/test_event_consumer.py::test_kafka_offset_commit_failure_after_db_commit_redelivery_safety`): Verified that Kafka commit failure after DB commit recovers safely. Captured that in-process commit failure triggers retry loop (which re-enters handler before hitting `IntegrityError`), whereas redelivery after process crash/restart fast-skips at Step 3 idempotency barrier.
+    2. True Concurrent Consumer Processing Race against PostgreSQL (`tests/test_event_consumer.py::test_true_concurrent_consumer_race_against_postgres`): Verified simultaneous execution of two consumer workers racing on `uq_consumer_events_consumer_event`. Exactly one worker commits `SUCCESS`; colliding worker catches `IntegrityError`, confirms `COMPLETED`, returns `DUPLICATE_SKIPPED`, preventing duplicate DB side effects.
+    3. True Concurrent Dispatcher Claiming with Held Row Locks (`tests/test_outbox.py::test_true_concurrent_dispatcher_skip_locked_with_held_lock`): Verified that while Worker 1 holds open transaction and row-level locks via `FOR UPDATE SKIP LOCKED`, Worker 2's `claim_batch` skips locked rows immediately and claims disjoint rows without blocking or deadlocking.
+    4. Live Consumer Restart Offset Resumption (`tests/test_phase7_acceptance_e2e.py::test_e2e_consumer_restart_resumes_from_committed_offset`): Verified that when Consumer 1 processes Event 1, commits offset, and stops, a subsequent Consumer 2 starting with the same `group_id` resumes strictly from the committed offset, receiving Event 2 without reprocessing Event 1.
+  - Verification & Quality Gates:
+    - Pytest Suite: All 117 tests passing in 62.82s (42 Phase 7 tests).
+    - Code Quality: `ruff check .` (0 errors), `ruff format --check .` (58 files formatted), `mypy .` (strict passed across 53 source files).
+    - Frontend Suite: `flutter analyze` clean (0 issues), all unit/widget tests passing.
+- 2026-10-19: Completed Phase 7 Reliability Hardening Pass (Issues 1 & 2).
+  - Issue 1: Consumer Retry Boundary Hardening (`app/services/event_consumer/consumer.py`):
+    - Decoupled Step 5 (handler execution and atomic DB transaction commit) from Step 6 (`commit_offset`).
+    - Once the database transaction commits (handler side-effects + `ConsumerEvent` idempotency record), `db_committed = True` breaks the retry loop immediately.
+    - If a subsequent Kafka offset-commit failure occurs, handler side-effects will NEVER re-run within the same processing attempt sequence.
+    - Preserved redelivery safety: if the consumer process crashes or is killed before Kafka records the committed offset, subsequent redelivery by another worker/consumer hit Step 3 idempotency barrier and fast-skips cleanly (`DUPLICATE_SKIPPED`) with 0 additional handler executions.
+    - Updated regression test `tests/test_event_consumer.py::test_kafka_offset_commit_failure_after_db_commit_redelivery_safety` proving handler invocation count is strictly 1 across both initial commit failure and subsequent redelivery.
+  - Issue 2: Consumer Partition Rebalance & Revocation Safety (`app/services/event_consumer/consumer.py`):
+    - Subscribed `aiokafka` consumer with `_ConsumerRebalanceListener` bridging `on_partitions_revoked` and `on_partitions_assigned` to `EventConsumer`.
+    - Enhanced `PartitionOffsetTracker` with dynamic assignment tracking (`enable_assignment_tracking`, `assign_partition`, `revoke_partition`, `is_assigned`), tracking highest contiguous durable safe offsets (`_highest_safe`) and committed offsets (`_committed`).
+    - Flushed contiguous durable safe offsets to Kafka immediately prior to partition revocation in `handle_partitions_revoked` before discarding tracking state.
+    - Added assignment check in `commit_offset`: if a partition was revoked mid-flight while a handler was executing, offset commit to Kafka is safely skipped, preventing `CommitFailedError` and unsafe commits to partitions now owned by other consumers.
+    - Added focused tests in `tests/test_event_consumer.py`:
+      - `test_partition_offset_tracker_revocation_and_reassignment`: verifies in-flight/durable state is discarded upon revocation and reinstated on reassignment.
+      - `test_consumer_partition_revocation_prevents_unsafe_offset_commit`: verifies that revoking a partition mid-handler execution commits DB atomically but skips Kafka offset commit.
+      - `test_consumer_rebalance_flushes_durable_offsets_before_revocation`: verifies contiguous safe durable offsets are committed prior to discarding tracker state.
+  - Quality Gates & Test Suite Results:
+    - Backend Pytest Suite: All 120 tests passed in 50.37s (including all 21 consumer tests and 6 acceptance e2e tests).
+    - Code Quality: `ruff check .` (0 errors), `ruff format --check .` (58 files formatted), `mypy .` (strict mode clean across 53 source files).
+    - Database & Migrations: `alembic check` clean (no unmanaged schema drift).
+    - Frontend Code Quality: `flutter analyze` clean (0 issues), all Flutter unit and widget tests passing.
+    - Repository Safety: Zero Git write operations executed. Developer retains manual Git ownership.
+
+
 
