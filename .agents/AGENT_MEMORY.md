@@ -24,6 +24,7 @@
 - [x] Phase 7.3 — Transactional outbox, retries, dead-letter handling, and replay.
 - [x] Phase 7.4 — Consumer foundation, idempotency, quarantine, replay, and contiguous offset tracking.
 - [x] Phase 7.5 — Acceptance audit, consumer retry boundary hardening, and rebalance listener integration.
+- [x] Phase 8.1 — Preflight audit and Missing/Found matching engine specification.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -774,6 +775,25 @@
     - Database & Migrations: `alembic check` clean (no unmanaged schema drift).
     - Frontend Code Quality: `flutter analyze` clean (0 issues), all Flutter unit and widget tests passing.
     - Repository Safety: Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-28: Completed Phase 8.1 (Preflight Audit and Matching Specification).
+  - Preflight Audit Findings:
+    - Inspected project specifications, domain models (`Report`, `RecoveryRequest`, `OutboxEvent`, `ConsumerEvent`), event contracts (`report.created`, `report.updated`, `report.resolved`), PostGIS radius query implementations (`func.ST_DWithin` on geography with 5.0 km boundary), and consumer handler registry.
+    - Infrastructure verified healthy: PostgreSQL 16 + PostGIS 3.4 (`tracker_db`), Kafka 3.8.0 (`tracker_kafka`), MinIO (`tracker_minio`).
+    - Baseline quality gates: `ruff check .` (0 errors), `ruff format --check .` (58 files clean), `mypy .` (strict mode clean across 53 source files).
+    - Backend test suite: full test run confirmed clean with 120 passed in 100.75s (0 failures, 0 errors) after resolving transient container restart artifact.
+  - Deliverables & Design Specification (`docs/matching_specification.md`):
+    - Bidirectional matching formalized: symmetric scanning for both Missing-to-Found and Found-to-Missing events with temporal decoupling (handling reports filed days/weeks after loss/discovery).
+    - Candidate eligibility hard filters: opposite report types (`MISSING` vs `FOUND`), self-match exclusion (different creator and report ID), `ACTIVE` status requirement, incident coordinate isolation (WGS84 4326, no discovery map anchor leakage), 5.0 km boundary enforcement reusing PostGIS `ST_DWithin` semantics, category compatibility rules, and privacy guards.
+    - Initial ranking score formulation: $S = 0.30I + 0.30C + 0.25D + 0.15T$, with normalized signals (0–100) and linear distance proximity $D = 100 \times (1 - \text{distance\_km} / 5.0)$. Explicitly labeled as ranking score rather than calibrated probability.
+    - Anti-sparse scoring guards & minimum evidence requirements: prevents sparse descriptions from obtaining high scores; mandates verified token overlap for automated alerts; applies explicit characteristic contradiction penalties.
+    - Score bands & alert policy: 80–100 (high priority), 60–79 (possible match), 40–59 (low confidence, suppressed from alerts), <40 (disqualified). Reconciled provisional 75/100 alert threshold with minimum-evidence rules; documented notification recipient policy trade-offs (dual notification vs one-sided prompt) and alert deduplication.
+    - Match lifecycle & concurrency invariants: canonical pair identity ordered by UUID (`report_missing_id`, `report_found_id`), database uniqueness invariant, and event-triggered transitions (`report.created`, `report.updated`, `report.resolved`, reopening, and invalidation).
+    - Explainability & evaluation plan: structured explanation schema breaking down score contributions, paired with 7 representative test cases covering true matches, distinctive marks, nearby unrelated items, delayed matches, sparse inputs, and direct contradictions.
+  - Scope Boundaries Preserved:
+    - Zero code changes, migrations, API endpoints, Kafka topics, or worker services implemented.
+    - Phase 8.2+ implementation not started.
+    - Zero Git write operations executed. Developer retains manual Git ownership.
+
 
 
 

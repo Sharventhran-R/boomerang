@@ -205,7 +205,7 @@ Potential matching stages:
 6. scoring/ranking
 7. potential-match event
 8. notification
-The exact algorithm will be designed during the Matching Engine phase. Do not add ML/embeddings/vector databases to Phase 2.
+The matching specification, eligibility criteria, provisional ranking formula ($S = 0.30I + 0.30C + 0.25D + 0.15T$), alert policies, and lifecycle transitions are formalized in Phase 8.1 (`docs/matching_specification.md`). Do not add ML/embeddings/vector databases in Phase 8.
 
 ## 10. Images
 Reports may optionally contain multiple images.
@@ -272,6 +272,7 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 - Phase 5 complete (PostGIS Geospatial Search & Distance Sorting)
 - Phase 6 complete (Flutter Mobile + Web Foundation & Stitch UI)
 - Phase 7 complete (Kafka Event Architecture, Outbox, Consumer Foundation & Reliability Hardening)
+- Phase 8.1 complete (Preflight Audit & Missing/Found Matching Specification in `docs/matching_specification.md`)
 - Infrastructure operational: PostgreSQL 16 + PostGIS 3.4, Apache Kafka 3.8, MinIO object storage
 - Backend test suite reported clean (120 passed)
 - Quality gates reported clean: Ruff linter & format, strict mypy, Alembic schema check, Flutter analyze
