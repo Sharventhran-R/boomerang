@@ -25,6 +25,7 @@
 - [x] Phase 7.4 — Consumer foundation, idempotency, quarantine, replay, and contiguous offset tracking.
 - [x] Phase 7.5 — Acceptance audit, consumer retry boundary hardening, and rebalance listener integration.
 - [x] Phase 8.1 — Preflight audit and Missing/Found matching engine specification.
+- [x] Phase 8.2 — Candidate retrieval implementation.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -793,6 +794,36 @@
     - Zero code changes, migrations, API endpoints, Kafka topics, or worker services implemented.
     - Phase 8.2+ implementation not started.
     - Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-29: Completed Phase 8.2 (Candidate Retrieval Implementation).
+  - Scope & Architecture:
+    - Implemented `app/services/matching/retrieval.py` and exported `retrieve_candidates`, `CandidateMatch`, `DEFAULT_CANDIDATE_LIMIT` (50), `MAX_CANDIDATE_LIMIT` (100), and `MATCHING_RADIUS_METERS` (5000.0) via `app/services/matching/__init__.py`.
+    - Enforced all Phase 8.1 Candidate Eligibility Hard Filters in SQL:
+      - HF-1: Bidirectional opposite report types (`MISSING` searches `FOUND`; `FOUND` searches `MISSING`).
+      - HF-2: Self-match and same-creator exclusion (`Report.id != source.id`, `Report.created_by_user_id != source.created_by_user_id`).
+      - HF-3: Active status enforcement (`Report.status == ACTIVE` for both candidate and source).
+      - HF-4: Authoritative incident coordinates strictly from `Report.location` (no UI anchor leakage).
+      - HF-5: Inclusive 5,000-metre radius using PostGIS `ST_DWithin` on `Geography(POINT, 4326)`.
+      - HF-6: Category compatibility matrix: exact category matches compatible; conflicting concrete categories strictly excluded; `OTHER` category acts as catch-all where `OTHER`/`OTHER` and `OTHER`/specific-category pairs pass through retrieval so the deferred Phase 8.3 identity scorer can evaluate the $\ge 60$ confidence threshold.
+      - HF-7: Privacy and authorization preserved: only public report attributes compared; sensitive verification credentials excluded.
+      - Safe handling of missing coordinates: returns empty list cleanly without error or coordinate fabrication.
+    - Accurate ellipsoidal distance in metres calculated via PostGIS `func.ST_Distance(Report.location, source_location)`.
+    - Deterministic result ordering: `asc(distance_meters)`, `desc(Report.created_at)`, `asc(Report.id)`.
+    - Bounded result limit: validated against $1 \le \text{limit} \le 100$.
+    - N+1 query avoidance: eager loads `Report.images` using `selectinload(Report.images)`.
+  - Testing & Quality Gates:
+    - Created dedicated 20-test integration suite in `tests/test_candidate_retrieval.py` covering all 17 prompt requirements.
+    - Real PostGIS integration tests with dynamic globally-isolated spatial coordinate spaces and entity cleanup to prevent cross-test interference.
+    - Exact 5,000-metre boundary verified using PostGIS `ST_Project` with geodesic precision offsets.
+    - Focused retrieval suite: 20 of 20 tests passed in 20.70s.
+    - Full backend test suite (`pytest`): 140 of 140 passed in 140.85s (0 failures, 0 errors, 0 warnings).
+    - Linter & formatters: `ruff check .` (0 errors), `ruff format --check .` (62 files clean).
+    - Static type checking: `mypy .` strict passed with 0 issues in 56 source files.
+    - Database migrations: `alembic check` clean (0 unmanaged schema drift).
+    - Frontend quality: `flutter analyze` clean (0 issues).
+  - Scope Boundaries Preserved:
+    - Zero scoring algorithms (Phase 8.3), Kafka matching workers (Phase 8.4), or database match models/migrations (Phase 8.5) introduced.
+    - Zero Git write operations executed. Developer retains manual Git ownership.
+
 
 
 
