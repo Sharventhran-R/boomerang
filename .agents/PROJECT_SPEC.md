@@ -274,8 +274,10 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 - Phase 7 complete (Kafka Event Architecture, Outbox, Consumer Foundation & Reliability Hardening)
 - Phase 8.1 complete (Preflight Audit & Missing/Found Matching Specification in `docs/matching_specification.md`)
 - Phase 8.2 complete (Candidate Retrieval Service in `app/services/matching/`)
+- Phase 8.3 complete (Deterministic Match Scoring Engine in `app/services/matching/`)
+- Phase 8.3.1 complete (Gradual Time Score Refinement in `app/services/matching/time.py`)
 - Infrastructure operational: PostgreSQL 16 + PostGIS 3.4, Apache Kafka 3.8, MinIO object storage
-- Backend test suite reported clean (140 passed)
+- Backend test suite reported clean (178 passed)
 - Quality gates reported clean: Ruff linter & format, strict mypy, Alembic schema check, Flutter analyze
 - Outstanding Production-Readiness Item: Live Kafka consumer-group rebalance integration test pending prior to deploying multi-consumer replicas (see `.agents/AGENT_MEMORY.md`)
 

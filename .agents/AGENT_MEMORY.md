@@ -26,6 +26,8 @@
 - [x] Phase 7.5 — Acceptance audit, consumer retry boundary hardening, and rebalance listener integration.
 - [x] Phase 8.1 — Preflight audit and Missing/Found matching engine specification.
 - [x] Phase 8.2 — Candidate retrieval implementation.
+- [x] Phase 8.3 — Deterministic match scoring engine.
+- [x] Phase 8.3.1 — Gradual time score refinement.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -823,6 +825,64 @@
   - Scope Boundaries Preserved:
     - Zero scoring algorithms (Phase 8.3), Kafka matching workers (Phase 8.4), or database match models/migrations (Phase 8.5) introduced.
     - Zero Git write operations executed. Developer retains manual Git ownership.
+- 2026-10-30: Completed Phase 8.3 (Deterministic Match Scoring Engine).
+  - Scope & Architecture:
+    - Implemented modular, deterministic match-scoring package under `app/services/matching/`:
+      - `models.py`: Data classes (`IdentityBreakdown`, `CharacteristicsBreakdown`, `DistanceBreakdown`, `TimeBreakdown`, `MatchScoreResult`) and `ScoreClassification` enum.
+      - `identity.py`: Computes Signal I via category alignment (40%), brand/model token overlap (40%), and title noun alignment (20%). Enforces cross-category OTHER confidence barrier (I >= 60).
+      - `characteristics.py`: Computes Signal C via color overlap (+30), cases/covers/materials (+25), accessories (+20), and distinctive markings/monograms (+35). Enforces anti-sparse description caps (C <= 20 for descriptions < 15 chars) and detects direct color/mark contradictions (capping C at 0-10).
+      - `distance.py`: Computes Signal D via linear decay within 5.0 km radius: D = max(0, min(100, 100 * (1 - distance_km / 5.0))).
+      - `time.py`: Computes Signal T based on physical causality delta: Delta t = event_time_FOUND - event_time_MISSING. Implements specification brackets (0-7d: 100, 7-30d: 75, 30-90d: 40, >90d: 10, [-24h, 0): 50, <-24h: 0, missing/approx: 50). Coerces timezone-naive datetimes to UTC.
+      - `scorer.py`: Computes composite ranking score S = 0.30*I + 0.30*C + 0.25*D + 0.15*T. Applies 25-point deduction for contradictions. Evaluates classification bands (HIGH_PRIORITY >= 80, POSSIBLE_MATCH 60-79, LOW_CONFIDENCE 40-59, DISQUALIFIED < 40) and strict alert eligibility conditions (S >= 75, no contradictions, I >= 50, OTHER confidence guard, and minimum evidence alternatives).
+      - `__init__.py`: Exposed all scorers and breakdown models.
+  - Verification & Testing:
+    - Created dedicated 36-test suite in `tests/test_match_scoring.py` covering:
+      - Identity sub-scores, stop word filtering, brand/model overlap, and OTHER cross-category rules.
+      - Characteristics scoring, sparse descriptions, color conflicts, and monogram matches.
+      - Distance formula boundary values (0m, 2.5km, 5km, >5km, negative distances).
+      - Time delta brackets, small negative deltas, large negative deltas, and neutral missing times.
+      - Alert eligibility conditions, I >= 50 guard, contradiction penalties, and evidence alternatives.
+      - All 7 benchmark reference test cases from specification Section 8.2 (TC-01 through TC-07).
+    - Focused scoring test suite: 36 of 36 passed in 0.32s.
+    - Candidate retrieval test suite: 20 of 20 passed in 21.15s.
+    - Full backend test suite (`pytest`): 176 of 176 passed in 201.12s.
+    - Linter & formatters: `ruff check .` (0 errors), `ruff format --check .` (69 files clean).
+    - Typecheck: `mypy .` strict passed with 0 issues in 63 source files.
+    - Migrations: `alembic check` clean (0 unmanaged schema drift).
+  - Scope Boundaries Preserved:
+    - Phase 8.4 Kafka matching workers, Phase 8.5 database match models/migrations, and Phase 8.6 API/UI remain unimplemented.
+    - Preserved zero Git write operations. Developer retains manual Git ownership.
+- 2026-10-30: Completed Phase 8.3.1 (Gradual Time Score Refinement).
+  - Scope & Architecture:
+    - Refined `app/services/matching/time.py` to replace provisional stepped brackets with continuous linear interpolation:
+      - Rules formalized based on elapsed physical seconds (delta = event_time_FOUND - event_time_MISSING):
+        - delta < -24h: T = 0.
+        - -24h <= delta < 0: linear interpolation from 0 to 100 via T = 100 * (delta + 24h) / 24h.
+        - 0 <= delta <= 7d: T = 100.
+        - 7d < delta <= 90d: linear interpolation from 100 to 20 via T = 100 - 80 * (delta - 7d) / 83d.
+        - 90d < delta <= 120d: linear interpolation from 20 to 0 via T = 20 * (120d - delta) / 30d.
+        - delta > 120d: T = 0.
+        - Missing incident timestamps: T = 50, flagged with is_missing_time = True.
+      - Added `delta_seconds` to `TimeBreakdown` in `app/services/matching/models.py`.
+      - Preserved bidirectional invariance (always found minus missing).
+      - Strict timezone validation: rejects timezone-naive timestamps with ValueError.
+    - Updated `docs/matching_specification.md` Section 4.1 Signal T with refined rules.
+  - Verification & Testing:
+    - Added comprehensive unit tests in `tests/test_match_scoring.py` covering:
+      - Negative boundaries: -48h (T=0), -24h (T=0), -12h (T=50), 0 (T=100).
+      - Positive interpolation points: 7d (T=100), 14d (~93.25), 30d (~77.83), 60d (~48.92), 90d (T=20), 105d (T=10), 120d (T=0), 150d (T=0).
+      - Missing missing-report timestamp and missing found-report timestamp.
+      - Bidirectional evaluation invariance.
+      - Timezone-aware timestamp arithmetic and rejection of naive timestamps.
+    - Focused scoring test suite: 38 of 38 passed in 0.62s.
+    - Candidate retrieval test suite: 20 of 20 passed.
+    - Full backend test suite (`pytest`): 178 of 178 passed.
+    - Linter & formatters: `ruff check .` (0 errors), `ruff format --check .` (69 files clean).
+    - Strict mypy: clean across 63 source files.
+    - Database migrations: `alembic check` clean (0 unmanaged schema drift).
+  - Scope Boundaries Preserved:
+    - Phase 8.4 Kafka matching workers, Phase 8.5 database match models/migrations, and Phase 8.6 API/UI remain unimplemented.
+    - Preserved zero Git write operations. Developer retains manual Git ownership.
 
 
 

@@ -163,13 +163,18 @@ $$D = \max\left(0, \min\left(100, 100 \times \left(1 - \frac{\text{distance\_km}
 Evaluates temporal consistency based on `Report.event_time` (when loss or discovery occurred):
 - **Temporal Order Rule**: In the physical world, an item must be lost *at or before* it is found:
   $$\Delta t = \text{event\_time}_{\text{FOUND}} - \text{event\_time}_{\text{MISSING}}$$
-- **Ideal Range**: $\Delta t \in [0, 7\text{ days}]$ $\rightarrow$ $T = 100$.
-- **Moderate Gap**: $\Delta t \in (7\text{ days}, 30\text{ days}]$ $\rightarrow$ $T = 75$.
-- **Extended Gap**: $\Delta t \in (30\text{ days}, 90\text{ days}]$ $\rightarrow$ $T = 40$.
-- **Extreme Gap**: $\Delta t > 90\text{ days}$ $\rightarrow$ $T = 10$.
-- **Negative Time Delta (Found before Lost)**:
-  - Small negative delta ($\Delta t \in [-24\text{ hours}, 0)$): Permitted with moderate penalty ($T = 50$) to accommodate user timestamp estimation uncertainty and time zone mistakes.
-  - Large negative delta ($\Delta t < -24\text{ hours}$): Strong mismatch penalty ($T = 0$), as an item cannot be found days before it was reported lost.
+- **Refined Gradual Scoring Rules (Phase 8.3.1)**:
+  1. $\Delta t < -24\text{ hours}$: $T = 0$.
+  2. $-24\text{ hours} \le \Delta t < 0$: Linear interpolation from 0 to 100:
+     $$T = 100 \times \frac{\Delta t + 24\text{ hours}}{24\text{ hours}}$$
+  3. $0 \le \Delta t \le 7\text{ days}$: Ideal range, $T = 100$.
+  4. $7\text{ days} < \Delta t \le 90\text{ days}$: Linear interpolation from 100 to 20:
+     $$T = 100 - 80 \times \frac{\Delta t - 7\text{ days}}{83\text{ days}}$$
+  5. $90\text{ days} < \Delta t \le 120\text{ days}$: Linear interpolation from 20 to 0:
+     $$T = 20 \times \frac{120\text{ days} - \Delta t}{30\text{ days}}$$
+  6. $\Delta t > 120\text{ days}$: $T = 0$.
+  7. **Missing Incident Timestamp**: $T = 50$, marked with `is_missing_time = True` as missing temporal evidence.
+- **Timezone Invariants**: Both timestamps must be timezone-aware. Naive timestamps raise a validation error. Subtraction of timezone-aware datetimes cleanly preserves elapsed physical seconds.
 
 ---
 
