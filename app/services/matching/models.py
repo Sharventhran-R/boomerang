@@ -7,19 +7,11 @@ distance, time, and composite ranking scores.
 
 from __future__ import annotations
 
-import enum
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
-
-class ScoreClassification(enum.StrEnum):
-    """Classification bands for composite match score."""
-
-    HIGH_PRIORITY = "HIGH_PRIORITY"  # 80 - 100
-    POSSIBLE_MATCH = "POSSIBLE_MATCH"  # 60 - 79
-    LOW_CONFIDENCE = "LOW_CONFIDENCE"  # 40 - 59
-    DISQUALIFIED = "DISQUALIFIED"  # Below 40 (Suppressed)
+from app.db.models import ScoreClassification as ScoreClassification
 
 
 @dataclass(frozen=True, slots=True)

@@ -32,6 +32,8 @@ from app.db.database import AsyncSessionLocal
 from app.db.models import (
     ConsumerEvent,
     ConsumerEventStatus,
+    Match,
+    MatchStatus,
     RecoveryRequestStatus,
     Report,
     ReportCategory,
@@ -61,6 +63,7 @@ from app.services.event_consumer import (
 from app.services.matching import (
     InMemoryMatchResultHandoff,
     MatchingEventHandler,
+    MatchPersistenceService,
     create_matching_consumer,
     run_matching_worker,
 )
@@ -167,6 +170,12 @@ class _WorkerTestContext:
                 )
             )
         if self.report_ids:
+            await self.session.execute(
+                delete(Match).where(
+                    (Match.report_missing_id.in_(self.report_ids))
+                    | (Match.report_found_id.in_(self.report_ids))
+                )
+            )
             await self.session.execute(
                 delete(Report).where(Report.id.in_(self.report_ids))
             )
@@ -1390,5 +1399,157 @@ async def test_matching_worker_live_kafka_roundtrip() -> None:
             assert len(results) >= 1
             assert results[0].candidate_id == found.id
             assert results[0].composite_score >= 60.0
+        finally:
+            await ctx.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_matching_worker_persistent_postgres_handoff_integration() -> None:
+    """Tests MatchingEventHandler persists qualifying matches to PostgreSQL table."""
+    async with AsyncSessionLocal() as session:
+        ctx = _WorkerTestContext(session)
+        consumer_name = f"test_worker_pg_{uuid.uuid4().hex[:8]}"
+        ctx.consumer_names.append(consumer_name)
+        try:
+            u1 = await ctx.create_user("owner")
+            u2 = await ctx.create_user("finder")
+
+            missing = await ctx.create_report(
+                user_id=u1.id,
+                report_type=ReportType.MISSING,
+                title="Black iPhone 15 Pro",
+                description="Matte black in clear silicone case",
+            )
+            found = await ctx.create_report(
+                user_id=u2.id,
+                report_type=ReportType.FOUND,
+                title="iPhone 15 Pro black",
+                description="Found black phone with clear case",
+            )
+
+            # Create consumer with default MatchPersistenceService
+            consumer, persistence_handoff = create_matching_consumer(
+                consumer_name=consumer_name,
+                handoff=None,  # Defaults to MatchPersistenceService
+            )
+            assert isinstance(persistence_handoff, MatchPersistenceService)
+
+            event = _build_report_created_event(
+                report=missing,
+                latitude=ctx.base_lat,
+                longitude=ctx.base_lon,
+            )
+            record = _create_mock_record(
+                key=str(missing.id).encode("utf-8"),
+                value=event.model_dump_json().encode("utf-8"),
+            )
+
+            res = await consumer.process_record(record)
+            assert res == ConsumerProcessingResult.SUCCESS
+
+            # Verify match record written to PostgreSQL
+            matches = await persistence_handoff.get_matches_for_report(
+                missing.id, session
+            )
+            assert len(matches) == 1
+            match = matches[0]
+            assert match.report_missing_id == missing.id
+            assert match.report_found_id == found.id
+            assert match.status == MatchStatus.ACTIVE
+            assert match.composite_score >= 60.0
+            assert match.alert_eligible is True
+
+            # Verify ConsumerEvent was committed atomically
+            ce_stmt = select(ConsumerEvent).where(
+                ConsumerEvent.consumer_name == consumer_name,
+                ConsumerEvent.event_id == event.event_id,
+            )
+            ce_res = await session.execute(ce_stmt)
+            ce = ce_res.scalar_one_or_none()
+            assert ce is not None
+            assert ce.status == ConsumerEventStatus.COMPLETED
+        finally:
+            await ctx.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_matching_worker_persistent_postgres_transaction_rollback() -> None:
+    """Companion handler failure rolls back both ConsumerEvent and Match rows."""
+    from collections.abc import Sequence
+
+    from app.services.event_consumer.handler import EventHandler
+
+    class _FailingCompanionHandler(EventHandler):
+        def __init__(self) -> None:
+            self.name = "FailingCompanionHandler"
+
+        @property
+        def event_types(self) -> Sequence[EventType | str]:
+            return (EventType.REPORT_CREATED,)
+
+        async def handle(self, event: BoomerangEvent, session: AsyncSession) -> None:
+            raise RuntimeError("Simulated companion failure")
+
+    async with AsyncSessionLocal() as session:
+        ctx = _WorkerTestContext(session)
+        consumer_name = f"test_worker_rollback_{uuid.uuid4().hex[:8]}"
+        ctx.consumer_names.append(consumer_name)
+        try:
+            u1 = await ctx.create_user("owner")
+            u2 = await ctx.create_user("finder")
+
+            missing = await ctx.create_report(
+                user_id=u1.id,
+                report_type=ReportType.MISSING,
+                title="Black iPhone 15 Pro",
+            )
+            await ctx.create_report(
+                user_id=u2.id,
+                report_type=ReportType.FOUND,
+                title="iPhone 15 Pro black",
+            )
+
+            persistence = MatchPersistenceService()
+            matching_handler = MatchingEventHandler(handoff=persistence)
+            registry = HandlerRegistry()
+            registry.register(matching_handler)
+            registry.register(_FailingCompanionHandler())
+
+            consumer = EventConsumer(
+                consumer_name=consumer_name,
+                group_id=f"group_{consumer_name}",
+                topics=[settings.KAFKA_DOMAIN_EVENTS_TOPIC],
+                registry=registry,
+                session_factory=AsyncSessionLocal,
+                max_retries=1,
+                initial_retry_delay=0.01,
+            )
+
+            event = _build_report_created_event(
+                report=missing,
+                latitude=ctx.base_lat,
+                longitude=ctx.base_lon,
+            )
+            record = _create_mock_record(
+                key=str(missing.id).encode("utf-8"),
+                value=event.model_dump_json().encode("utf-8"),
+            )
+
+            res = await consumer.process_record(record)
+            assert res == ConsumerProcessingResult.QUARANTINED
+
+            # Match table must be completely empty (rolled back!)
+            matches = await persistence.get_matches_for_report(missing.id, session)
+            assert len(matches) == 0
+
+            # ConsumerEvent must be QUARANTINED, not COMPLETED
+            ce_stmt = select(ConsumerEvent).where(
+                ConsumerEvent.consumer_name == consumer_name,
+                ConsumerEvent.event_id == event.event_id,
+            )
+            ce_res = await session.execute(ce_stmt)
+            ce = ce_res.scalar_one_or_none()
+            assert ce is not None
+            assert ce.status == ConsumerEventStatus.QUARANTINED
         finally:
             await ctx.cleanup()

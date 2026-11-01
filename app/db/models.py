@@ -7,9 +7,11 @@ from typing import Any
 from geoalchemy2 import Geography
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Numeric,
@@ -71,6 +73,20 @@ class RecoveryRequestStatus(enum.StrEnum):
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
     COMPLETED = "COMPLETED"
+
+
+class MatchStatus(enum.StrEnum):
+    ACTIVE = "ACTIVE"
+    SUPPRESSED = "SUPPRESSED"
+    RESOLVED = "RESOLVED"
+    DISQUALIFIED = "DISQUALIFIED"
+
+
+class ScoreClassification(enum.StrEnum):
+    HIGH_PRIORITY = "HIGH_PRIORITY"
+    POSSIBLE_MATCH = "POSSIBLE_MATCH"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    DISQUALIFIED = "DISQUALIFIED"
 
 
 class User(Base):
@@ -187,6 +203,16 @@ class Report(Base):
     )
     recovery_requests: Mapped[list["RecoveryRequest"]] = relationship(
         "RecoveryRequest", back_populates="report", cascade="all, delete-orphan"
+    )
+    matches_as_missing: Mapped[list["Match"]] = relationship(
+        "Match",
+        foreign_keys="[Match.report_missing_id]",
+        back_populates="report_missing",
+    )
+    matches_as_found: Mapped[list["Match"]] = relationship(
+        "Match",
+        foreign_keys="[Match.report_found_id]",
+        back_populates="report_found",
     )
 
 
@@ -379,4 +405,116 @@ class ConsumerEvent(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+
+class Match(Base):
+    __tablename__ = "matches"
+    __table_args__ = (
+        UniqueConstraint(
+            "report_missing_id",
+            "report_found_id",
+            name="uq_matches_missing_found",
+        ),
+        CheckConstraint(
+            "report_missing_id != report_found_id",
+            name="chk_matches_distinct_reports",
+        ),
+        CheckConstraint(
+            "composite_score >= 0.0 AND composite_score <= 100.0",
+            name="chk_matches_composite_score",
+        ),
+        CheckConstraint(
+            "raw_composite_score >= 0.0 AND raw_composite_score <= 100.0",
+            name="chk_matches_raw_composite_score",
+        ),
+        CheckConstraint(
+            "score_identity >= 0.0 AND score_identity <= 100.0",
+            name="chk_matches_score_identity",
+        ),
+        CheckConstraint(
+            "score_characteristics >= 0.0 AND score_characteristics <= 100.0",
+            name="chk_matches_score_characteristics",
+        ),
+        CheckConstraint(
+            "score_distance >= 0.0 AND score_distance <= 100.0",
+            name="chk_matches_score_distance",
+        ),
+        CheckConstraint(
+            "score_time >= 0.0 AND score_time <= 100.0",
+            name="chk_matches_score_time",
+        ),
+        CheckConstraint(
+            "contradiction_penalty >= 0.0",
+            name="chk_matches_contradiction_penalty",
+        ),
+        CheckConstraint("scoring_version > 0", name="chk_matches_scoring_version"),
+        Index("ix_matches_status_composite_score", "status", "composite_score"),
+        Index("ix_matches_alert_eligible", "status", "alert_eligible"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    report_missing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("reports.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    report_found_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("reports.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+
+    status: Mapped[MatchStatus] = mapped_column(
+        Enum(MatchStatus, name="match_status_enum"),
+        nullable=False,
+        default=MatchStatus.ACTIVE,
+        index=True,
+    )
+
+    composite_score: Mapped[float] = mapped_column(Float, nullable=False)
+    score_identity: Mapped[float] = mapped_column(Float, nullable=False)
+    score_characteristics: Mapped[float] = mapped_column(Float, nullable=False)
+    score_distance: Mapped[float] = mapped_column(Float, nullable=False)
+    score_time: Mapped[float] = mapped_column(Float, nullable=False)
+    raw_composite_score: Mapped[float] = mapped_column(Float, nullable=False)
+    contradiction_penalty: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
+
+    classification: Mapped[ScoreClassification] = mapped_column(
+        Enum(ScoreClassification, name="score_classification_enum"),
+        nullable=False,
+        index=True,
+    )
+    alert_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    minimum_evidence_satisfied: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+
+    evidence_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    explainability_details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False
+    )
+
+    scoring_version: Mapped[int] = mapped_column(nullable=False, default=1)
+    last_scored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    report_missing: Mapped["Report"] = relationship(
+        "Report", foreign_keys=[report_missing_id], back_populates="matches_as_missing"
+    )
+    report_found: Mapped["Report"] = relationship(
+        "Report", foreign_keys=[report_found_id], back_populates="matches_as_found"
     )

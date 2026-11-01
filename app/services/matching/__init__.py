@@ -5,6 +5,7 @@ Phase 8.3: Deterministic, explainable match scoring engine.
 Phase 8.4: Kafka matching worker and event handling.
 """
 
+from app.db.models import Match, MatchStatus
 from app.services.matching.characteristics import compute_characteristics_score
 from app.services.matching.distance import compute_distance_score
 from app.services.matching.identity import compute_identity_score
@@ -15,6 +16,12 @@ from app.services.matching.models import (
     MatchScoreResult,
     ScoreClassification,
     TimeBreakdown,
+)
+from app.services.matching.persistence import (
+    PERSISTENCE_SCORE_THRESHOLD,
+    MatchIntegrityError,
+    MatchPersistenceService,
+    serialize_explainability,
 )
 from app.services.matching.retrieval import (
     DEFAULT_CANDIDATE_LIMIT,
@@ -62,4 +69,11 @@ __all__ = [
     "MatchingEventHandler",
     "create_matching_consumer",
     "run_matching_worker",
+    # Phase 8.5 Persistence & Match Models
+    "Match",
+    "MatchStatus",
+    "MatchPersistenceService",
+    "MatchIntegrityError",
+    "PERSISTENCE_SCORE_THRESHOLD",
+    "serialize_explainability",
 ]

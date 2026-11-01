@@ -36,6 +36,7 @@ from app.db.models import Report, ReportStatus
 from app.schemas.events import AggregateType, BoomerangEvent, EventType
 from app.services.event_consumer import EventConsumer, HandlerRegistry
 from app.services.matching.models import MatchScoreResult
+from app.services.matching.persistence import MatchPersistenceService
 from app.services.matching.retrieval import CandidateMatch, retrieve_candidates
 from app.services.matching.scorer import score_candidates
 
@@ -147,7 +148,7 @@ class MatchingEventHandler:
 
     def __init__(self, handoff: MatchResultHandoff | None = None) -> None:
         self._handoff: MatchResultHandoff = (
-            handoff if handoff is not None else InMemoryMatchResultHandoff()
+            handoff if handoff is not None else MatchPersistenceService()
         )
         self.name = "MatchingEventHandler"
 
@@ -214,7 +215,7 @@ class MatchingEventHandler:
         report_id: uuid.UUID,
         session: AsyncSession,
     ) -> None:
-        """Acknowledges report resolution safely without generating active matches."""
+        """Acknowledges report resolution safely and transitions matches to RESOLVED."""
         stmt = select(Report.id, Report.status).where(Report.id == report_id)
         res = await session.execute(stmt)
         row = res.first()
@@ -227,9 +228,12 @@ class MatchingEventHandler:
             )
             return
 
+        if isinstance(self._handoff, MatchPersistenceService):
+            await self._handoff.resolve_matches_for_report(report_id, session)
+
         logger.info(
             "Acknowledged resolution for report %s (status=%s) from event %s; "
-            "matching suppressed.",
+            "matches transitioned to RESOLVED.",
             report_id,
             row.status,
             event.event_id,
@@ -276,6 +280,15 @@ class MatchingEventHandler:
                 report.status.value,
                 event.event_id,
             )
+            if isinstance(self._handoff, MatchPersistenceService):
+                if report.status in (ReportStatus.CANCELLED, ReportStatus.EXPIRED):
+                    await self._handoff.disqualify_matches_for_report(
+                        report_id,
+                        session,
+                        reason=f"report_{report.status.value.lower()}",
+                    )
+                elif report.status == ReportStatus.RESOLVED:
+                    await self._handoff.resolve_matches_for_report(report_id, session)
             return
 
         start_time = time.perf_counter()
@@ -327,7 +340,7 @@ def create_matching_consumer(
     max_retry_delay: float | None = None,
     backoff_multiplier: float | None = None,
     auto_offset_reset: str = "earliest",
-) -> tuple[EventConsumer, InMemoryMatchResultHandoff]: ...
+) -> tuple[EventConsumer, MatchPersistenceService]: ...
 
 
 @overload
@@ -397,7 +410,7 @@ def create_matching_consumer(
     Returns:
         Tuple of (EventConsumer, MatchResultHandoff).
     """
-    effective_handoff = handoff if handoff is not None else InMemoryMatchResultHandoff()
+    effective_handoff = handoff if handoff is not None else MatchPersistenceService()
     registry = HandlerRegistry()
     handler = MatchingEventHandler(handoff=effective_handoff)
     registry.register(handler)

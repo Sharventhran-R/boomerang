@@ -28,6 +28,8 @@
 - [x] Phase 8.2 — Candidate retrieval implementation.
 - [x] Phase 8.3 — Deterministic match scoring engine.
 - [x] Phase 8.3.1 — Gradual time score refinement.
+- [x] Phase 8.4 — Kafka matching worker.
+- [x] Phase 8.5 — Persistent match records and lifecycle management.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -929,6 +931,78 @@
     - Phase 8.6 API/UI integration and notifications remain unimplemented.
     - No new Kafka topics, outbox dispatchers, or dependencies introduced.
     - Preserved zero Git write operations. Developer retains manual Git ownership.
+- 2026-11-01: Completed Phase 8.5 (Persistent Match Records & Lifecycle Management).
+  - Scope & Architecture:
+    - Replaced transient in-memory handoff with PostgreSQL-backed durable persistence service in `app/services/matching/persistence.py`.
+    - Created `Match` model in `app/db/models.py` with:
+      - `MatchStatus` enum (`ACTIVE`, `SUPPRESSED`, `RESOLVED`, `DISQUALIFIED`).
+      - `ScoreClassification` enum (`HIGH_PRIORITY`, `POSSIBLE_MATCH`, `LOW_CONFIDENCE`, `DISQUALIFIED`).
+      - Foreign keys `report_missing_id` and `report_found_id` referencing `reports.id` with `ondelete="RESTRICT"`.
+      - Relationships `matches_as_missing` and `matches_as_found` on `Report`.
+      - Database unique constraint `uq_matches_missing_found` on `(report_missing_id, report_found_id)`.
+      - Check constraints for distinct reports (`report_missing_id != report_found_id`), score ranges [0, 100] for composite and component scores (`score_identity`, `score_characteristics`, `score_location`, `score_time`), non-negative contradiction penalty, and positive scoring version.
+      - Performance indexes on `(status, composite_score)`, `(status, alert_eligible)`, `report_missing_id`, `report_found_id`, `created_at`, and `classification`.
+    - Database Migration:
+      - Generated and applied Alembic revision `0b487be6c5d3_phase_8_5_matches.py`.
+      - Verified bidirectional migration (`downgrade -1`, `upgrade head`).
+      - Validated schema sync via `alembic check` (0 unmanaged drift).
+    - Lifecycle Management & Validation (`MatchPersistenceService`):
+      - Canonical report pair invariant: Missing report ID is strictly mapped to `report_missing_id` and Found report ID to `report_found_id` regardless of which report triggered candidate retrieval.
+      - Integrity checks: Rejects self-matches and pairs with identical report types.
+      - Separation of Score Classification & Lifecycle:
+        - `MatchStatus` models lifecycle states: `ACTIVE`, `SUPPRESSED`, `RESOLVED`, `DISQUALIFIED`.
+        - `ScoreClassification` models score bands: `HIGH_PRIORITY` (>=80), `POSSIBLE_MATCH` (60-79), `LOW_CONFIDENCE` (40-59), `DISQUALIFIED` (<40).
+        - Candidate scoring below 40 receives `MatchStatus.SUPPRESSED` while classification reflects its score band (`ScoreClassification.DISQUALIFIED`).
+        - Disqualification of terminal/unreturned matches does not overwrite score band classification.
+      - Concurrency & Race Condition Protection:
+        - Authoritative report verification under shared row-level locks: queries involved reports with `with_for_update(read=True)` (`FOR SHARE`) in deterministic UUID order, serializing against concurrent cancellations or terminal status mutations.
+        - Database-level conditional upsert guard:
+          `ON CONFLICT DO UPDATE ... WHERE matches.status != 'RESOLVED' AND (excluded.status != 'ACTIVE' OR ((SELECT r_m.status FROM reports r_m WHERE r_m.id = matches.report_missing_id) = 'ACTIVE' AND (SELECT r_f.status FROM reports r_f WHERE r_f.id = matches.report_found_id) = 'ACTIVE'))`
+          prevents any worker from activating a match if either report is `CANCELLED`, `EXPIRED`, or `RESOLVED`.
+        - Recoverable hard-filter reactivation: allows `DISQUALIFIED -> ACTIVE` when both reports are genuinely `ACTIVE` and score >= 40.
+        - Candidate Retrieval Truncation Reconciliation:
+          - Distinguishes candidate truncation from genuine hard-filter failure.
+          - Re-evaluates unreturned active/suppressed matches against spatial proximity (ST_Distance <= 5000m), category compatibility (HF-6), and active report status.
+          - Eligible matches omitted solely due to retrieval limits retain their current lifecycle status (ACTIVE or SUPPRESSED) without false disqualification.
+          - Genuine hard-filter failures (distance > 5km, incompatible categories, cancelled/expired reports) are transitioned to DISQUALIFIED.
+        - Permanent immutability of `RESOLVED` matches.
+      - Report termination cascade:
+        - `resolve_matches_for_report()` transitions all active/suppressed matches of a resolved report to `RESOLVED`.
+        - `disqualify_matches_for_report()` transitions all active/suppressed matches of cancelled/expired reports to `DISQUALIFIED`.
+    - Worker Integration (`app/services/matching/worker.py`):
+      - Replaced `InMemoryMatchResultHandoff` default with `MatchPersistenceService()`.
+      - Integrated terminal report resolution and disqualification handlers with the matching consumer.
+  - Verification & Testing:
+    - Dedicated test suite in `tests/test_match_persistence.py` (23 tests passed in 17s):
+      - Canonical pair ordering from MISSING and FOUND sources.
+      - Self-match rejection and distinct check constraint.
+      - Score < 40 discarded without database row insertion.
+      - Rescoring updates in-place, demotion to SUPPRESSED, and promotion back to ACTIVE.
+      - Missing candidate disqualification.
+      - RESOLVED terminal status protection.
+      - Non-ACTIVE report termination cascading to matches.
+      - 5 concurrent independent-session upserts via `asyncio.gather()` producing exactly 1 row.
+      - Foreign key `ON DELETE RESTRICT` integrity validation.
+      - Database check constraint validation on score ranges.
+      - Concurrency test: Match scoring concurrent with report cancellation.
+      - Concurrency test: Match scoring concurrent with report expiration.
+      - Concurrency test: Match scoring concurrent with report resolution.
+      - Integration test: Reactivation after a temporary geographic hard-filter failure.
+      - Integration test: Confirmation that terminal matches cannot be reactivated.
+      - Consistency test: Existing valid match omitted solely by retrieval limit retains status.
+      - Consistency test: Existing match genuinely outside geographic boundary is disqualified.
+      - Consistency test: Existing match with incompatible category is disqualified.
+      - Consistency test: Truncated candidate set preserves omitted eligible matches.
+    - Matching worker suite in `tests/test_matching_worker.py` (22 tests passed in 31s):
+      - Added real PostgreSQL match persistence integration test.
+      - Added transaction rollback verification confirming zero rows persisted when database transaction aborts.
+    - Full backend pytest suite (`pytest`): 223 of 223 passed (0 failures, 0 errors).
+    - Linter & format check: `ruff check .` (0 errors), `ruff format --check .` (74 files clean).
+    - Static typecheck: `mypy .` strict passed with 0 issues in 68 source files.
+    - Migrations: `alembic check` clean (0 unmanaged schema drift).
+  - Scope Boundaries Preserved:
+    - Phase 8.6 API/UI endpoints and Phase 9 Notifications remain unimplemented.
+    - Zero Git write operations performed. Developer retains manual Git ownership.
 
 
 
