@@ -883,6 +883,52 @@
   - Scope Boundaries Preserved:
     - Phase 8.4 Kafka matching workers, Phase 8.5 database match models/migrations, and Phase 8.6 API/UI remain unimplemented.
     - Preserved zero Git write operations. Developer retains manual Git ownership.
+- 2026-11-01: Completed Phase 8.4 (Kafka Matching Worker).
+  - Scope & Architecture:
+    - Implemented event-driven Kafka matching worker in `app/services/matching/worker.py` and exported public interfaces via `app/services/matching/__init__.py`.
+    - Consumer Group: `matching_engine` consuming from `boomerang.domain.events` (`settings.KAFKA_DOMAIN_EVENTS_TOPIC`).
+    - Event Handling:
+      - `report.created`: Validates event contract, extracts report ID, queries latest report state from PostgreSQL with PostGIS coordinates (`func.ST_Y`, `func.ST_X`) and images (`selectinload`). Safely skips if report is missing or non-`ACTIVE`. Calls Phase 8.2 candidate retrieval (`retrieve_candidates`) within 5.0 km, calls Phase 8.3 scoring engine (`score_candidates`), passes scored results to `MatchResultHandoff`, and logs structured telemetry.
+      - `report.updated`: Executes identical retrieval and scoring pipeline as `report.created` to re-evaluate matches against authoritative PostgreSQL attributes and coordinates.
+      - `report.resolved`: Fetches report state, confirms terminal/non-active status, suppresses candidate search, avoids deleting or mutating persistent match records, and acknowledges event safely.
+      - Unregistered events: Automatically acknowledged and recorded with `ConsumerProcessingResult.IGNORED` by underlying `EventConsumer`.
+    - Result Handoff Boundary (Phase 8.4 -> 8.5 Interface):
+      - Defined typed boundary protocol `MatchResultHandoff` with `async def record_matches(source_report, results, session)`.
+      - Implemented thread-safe `InMemoryMatchResultHandoff` with explicit persistence limitation notice: results reside in process memory, are not durable across worker restarts, and will be replaced by Phase 8.5 database match tables without modifying consumer or handler logic.
+    - Delivery & Idempotency Compliance:
+      - Reuses Phase 7 `EventConsumer` and `ConsumerEvent` idempotency barrier, ensuring duplicate event deliveries fast-skip without duplicate handoff calls.
+      - Maintains atomic DB transactions, exponential retry backoff with full jitter, quarantine handling for poison messages/malformed payloads, safe contiguous offset commits via `PartitionOffsetTracker`, and consumer group rebalance safety with assignment tracking.
+    - Factories & Entrypoints:
+      - `create_matching_consumer(...)`: Configures and returns `(EventConsumer, MatchResultHandoff)` with generic typed overloads.
+      - `run_matching_worker(...)`: Standalone daemon runner polling the Kafka topic with graceful shutdown on `stop_event` or cancellation.
+  - Verification & Testing:
+    - Created dedicated 18-test suite in `tests/test_matching_worker.py` covering:
+      - Event handling for `report.created` (MISSING and FOUND sources), `report.updated`, and `report.resolved`.
+      - Unrelated event handling (`recovery_request.created`) producing `IGNORED` outcome and advancing offsets.
+      - Deleted/missing and non-`ACTIVE` (CANCELLED) reports safely skipping candidate retrieval.
+      - Poison messages / malformed JSON payloads safely quarantined with committed offsets.
+      - Authoritative PostgreSQL state overriding stale event payload fields and coordinates.
+      - Empty candidate sets (0 matches) and non-alert-eligible candidates handling.
+      - Duplicate event delivery idempotency and avoidance of redundant handoffs.
+      - Transient database failure retries and recovery.
+      - Permanent scoring failures quarantined with `ErrorCategory.HANDLER_ERROR`.
+      - Graceful worker loop shutdown via `stop_event`.
+      - Consumer rebalance partition revocation committing safe contiguous offsets.
+      - Live Kafka broker roundtrip producing and consuming events on running Docker broker.
+    - Test execution results:
+      - Focused matching worker suite: 18 of 18 passed in 21.76s.
+      - Existing consumer suite (`tests/test_event_consumer.py`): 21 of 21 passed.
+      - Candidate retrieval suite (`tests/test_candidate_retrieval.py`): 20 of 20 passed.
+      - Match scoring suite (`tests/test_match_scoring.py`): 38 of 38 passed.
+      - Full backend pytest suite (`pytest`): 196 of 196 passed in 181.48s (0 failures, 0 errors).
+      - Lint & format check: `ruff check .` (0 errors), `ruff format --check .` (71 files clean).
+      - Static typecheck: `mypy .` strict passed with 0 issues in 65 source files.
+      - Migrations: `alembic check` clean (0 unmanaged schema drift).
+  - Scope Boundaries Preserved:
+    - Phase 8.5 database match tables, models, and migrations remain unimplemented.
+    - Phase 8.6 API/UI integration and notifications remain unimplemented.
+    - No new Kafka topics, outbox dispatchers, or dependencies introduced.
+    - Preserved zero Git write operations. Developer retains manual Git ownership.
 
 
 

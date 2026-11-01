@@ -2,6 +2,7 @@
 
 Phase 8.2: Candidate retrieval via spatial PostGIS queries.
 Phase 8.3: Deterministic, explainable match scoring engine.
+Phase 8.4: Kafka matching worker and event handling.
 """
 
 from app.services.matching.characteristics import compute_characteristics_score
@@ -24,6 +25,14 @@ from app.services.matching.retrieval import (
 )
 from app.services.matching.scorer import score_candidate, score_candidates
 from app.services.matching.time import compute_time_score
+from app.services.matching.worker import (
+    MATCHING_CONSUMER_GROUP,
+    InMemoryMatchResultHandoff,
+    MatchingEventHandler,
+    MatchResultHandoff,
+    create_matching_consumer,
+    run_matching_worker,
+)
 
 __all__ = [
     # Phase 8.2 Retrieval
@@ -46,4 +55,11 @@ __all__ = [
     "compute_time_score",
     "score_candidate",
     "score_candidates",
+    # Phase 8.4 Worker & Result Handoff
+    "MATCHING_CONSUMER_GROUP",
+    "MatchResultHandoff",
+    "InMemoryMatchResultHandoff",
+    "MatchingEventHandler",
+    "create_matching_consumer",
+    "run_matching_worker",
 ]
