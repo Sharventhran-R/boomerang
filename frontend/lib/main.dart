@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'services/auth_service.dart';
+import 'services/match_repository.dart';
 import 'services/recovery_repository.dart';
 import 'services/report_repository.dart';
 import 'theme.dart';
@@ -11,6 +12,7 @@ void main() async {
   await AuthService.instance.restoreSession();
   ReportRepository.instance.configure();
   RecoveryRepository.instance.configure();
+  MatchRepository.instance.configure();
   runApp(const BoomerangApp());
 }
 

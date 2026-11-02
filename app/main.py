@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
 from app.api.auth import auth_router, users_router
+from app.api.matches import matches_router
 from app.api.recovery import recovery_router
 from app.api.reports import reports_router
 from app.core.config import settings
@@ -32,6 +33,7 @@ app.include_router(
     prefix=f"{settings.API_V1_STR}/recovery-requests",
     tags=["recovery-requests"],
 )
+app.include_router(matches_router, prefix=f"{settings.API_V1_STR}", tags=["matches"])
 
 
 @app.exception_handler(Exception)

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../models/match_model.dart';
 import '../../models/report_model.dart';
+import '../../services/match_repository.dart';
 import '../../services/recovery_repository.dart';
 import '../../services/report_repository.dart';
 import '../../theme.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/match_card.dart';
 import '../widgets/status_label.dart';
 
 class ReportDetailsScreen extends StatefulWidget {
@@ -40,6 +43,8 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
   ReportModel? _loadedReport;
   bool _isLoading = false;
   String? _errorMessage;
+  List<MatchModel>? _matches;
+  bool _isLoadingMatches = false;
 
   String get _displayTitle => _loadedReport?.title ?? widget.title;
   String get _displayCategory => _loadedReport?.category ?? widget.category;
@@ -57,6 +62,7 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
     super.initState();
     if (widget.reportId != null) {
       _loadReport();
+      _loadMatches();
     }
   }
 
@@ -74,6 +80,9 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
           _loadedReport = report;
           _isLoading = false;
         });
+        if (_matches == null && !_isLoadingMatches) {
+          _loadMatches();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -81,6 +90,26 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
           _errorMessage = e.toString();
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadMatches() async {
+    if (widget.reportId == null) return;
+    setState(() => _isLoadingMatches = true);
+    try {
+      final matches = await MatchRepository.instance.fetchMatchesForReport(
+        widget.reportId!,
+      );
+      if (mounted) {
+        setState(() {
+          _matches = matches;
+          _isLoadingMatches = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingMatches = false);
       }
     }
   }
@@ -379,6 +408,94 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                         ],
                       ),
                     ),
+
+                    // Potential Matches Section (displayed for report owners with matches)
+                    if (_matches != null && _matches!.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          const Text(
+                            'POTENTIAL MATCHES',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                              color: AppTheme.secondaryText,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.elevatedSurface,
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.smallRadius,
+                              ),
+                              border: Border.all(color: AppTheme.borderMuted),
+                            ),
+                            child: Text(
+                              '${_matches!.length}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ..._matches!.map((m) => MatchCard(match: m)),
+                    ] else if (_isLoadingMatches) ...[
+                      const SizedBox(height: 24),
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.secondaryText,
+                          ),
+                        ),
+                      ),
+                    ] else if (_matches != null &&
+                        _matches!.isEmpty &&
+                        (_loadedReport?.isUserReport ?? false)) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.defaultRadius,
+                          ),
+                          border: Border.all(color: AppTheme.borderSubtle),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.radar,
+                              size: 20,
+                              color: AppTheme.secondaryText,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Scanning for matching reports within 5 km. You will be alerted when candidates are detected.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.secondaryText,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 24),
 
                     // Action Buttons

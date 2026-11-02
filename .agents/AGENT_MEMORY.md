@@ -1003,6 +1003,44 @@
   - Scope Boundaries Preserved:
     - Phase 8.6 API/UI endpoints and Phase 9 Notifications remain unimplemented.
     - Zero Git write operations performed. Developer retains manual Git ownership.
+- 2026-11-02: Completed Phase 8.6 — Matching API and Flutter Integration.
+  - Scope: Exposed authenticated, paginated FastAPI matching endpoints and integrated complete match inspection and telemetry UI in Flutter.
+  - Backend Matching API Implementation:
+    - Created `app/schemas/match.py` with strict Pydantic v2 schemas: `MatchReportSummary`, `MatchListItemResponse`, `MatchListResponse`, and `MatchDetailResponse` exposing safe public report attributes (zero private user credentials or contact leaks).
+    - Created `app/api/matches.py` with:
+      - `GET /api/v1/reports/{report_id}/matches`: Lists active match candidates for a report owned by the authenticated user. Supports both `MISSING` and `FOUND` reports, filters `Match.status == MatchStatus.ACTIVE` for clean active feeds, supports optional `classification` filtering, enforces deterministic ordering (`composite_score DESC, created_at DESC, id ASC`), and joins opposite report coordinates and metadata.
+      - `GET /api/v1/matches/{match_id}`: Retrieves comprehensive match telemetry, subscores, and full explainability details. Restricts access strictly to the creators of the missing and found reports (`owns_missing or owns_found`), providing `user_role` contextualization ("MISSING", "FOUND", or "BOTH").
+    - Mounted `matches_router` in `app/main.py`.
+    - Added comprehensive integration tests in `tests/test_matching_api.py` (10 tests, 100% pass):
+      - Missing report match listing and opposite Found report presentation.
+      - Found report match listing and opposite Missing report presentation.
+      - Safe public report details with zero private user leaks.
+      - Exclusion of non-ACTIVE (`SUPPRESSED`, `DISQUALIFIED`, `RESOLVED`) matches from active feeds.
+      - Classification band filtering (`HIGH_PRIORITY`, `POSSIBLE_MATCH`).
+      - Deterministic ordering and multi-page pagination.
+      - Rejection of unauthenticated requests (401), unauthorized report access (403), unauthorized match detail access (403), nonexistent entities (404), and malformed UUIDs (422).
+  - Frontend Flutter Integration:
+    - Created `frontend/lib/models/match_model.dart` with `MatchModel` and `MatchDetailModel` supporting JSON serialization and telemetry formatting.
+    - Created observable `MatchRepository` in `frontend/lib/services/match_repository.dart` managing live API communication, in-memory caching, and testing mock isolation.
+    - Configured `MatchRepository` in `frontend/lib/main.dart` on application startup.
+    - Created `MatchCard` in `frontend/lib/ui/widgets/match_card.dart` adhering to Swiss-modernist monochromatic design tokens with high-contrast match score percentage badge, classification pill, distance, category icon, and evidence summary.
+    - Created `MatchDetailScreen` in `frontend/lib/ui/screens/match_detail_screen.dart` featuring:
+      - Composite score hero card with percentage and alert eligibility badge.
+      - Side-by-side / sequential report comparison cards with direct report navigation.
+      - Structured telemetry cards for the 4 matching signals: Signal I (Identity), Signal C (Characteristics), Signal D (Geographic Distance), and Signal T (Temporal Compatibility).
+      - Action footer allowing Missing report owners to initiate recovery contact.
+    - Updated `ReportDetailsScreen` in `frontend/lib/ui/screens/report_details_screen.dart` with a dynamic `Potential Matches` card and candidate list for report owners.
+    - Created Flutter test suite in `frontend/test/phase_8_6_match_test.dart` (5 tests, 100% pass) verifying model deserialization, `MatchCard` interaction, `MatchDetailScreen` telemetry presentation, and `ReportDetailsScreen` match list integration.
+  - Quality Verification:
+    - Backend tests: `pytest` 233 of 233 passed (0 errors, 0 failures).
+    - Backend typing: `mypy .` strict passed with 0 issues in 71 source files.
+    - Backend linting/formatting: `ruff check .` clean, `ruff format --check .` clean (77 files).
+    - Database migrations: `alembic check` clean (no unmanaged schema drift).
+    - Frontend formatting & analysis: `dart format .` clean, `flutter analyze` 0 issues.
+    - Frontend unit & widget tests: 149 of 149 passed.
+  - Scope Boundaries Preserved:
+    - Phase 9 Notifications (push alerts, email, outbox triggers) remain strictly deferred.
+    - Zero Git write operations performed (developer retains manual Git ownership).
 
 
 
