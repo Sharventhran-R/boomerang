@@ -1056,6 +1056,55 @@
     - Phased Implementation Roadmap: Structured sequential roadmap for Phases 9.2 through 9.8.
   - Scope Boundaries Preserved:
     - Specification only. No application code, migrations, or dependencies added. Zero Git write operations performed.
+- 2026-11-02: Completed Phase 9.2 — Notification Database Models & Migrations.
+  - Scope: Database foundation layer (SQLAlchemy models, Alembic migration, repository layer, database integration tests). Strictly zero Kafka consumers, no FCM client, no FastAPI notification endpoints, no Flutter UI (reserved for subsequent Phase 9 subphases).
+  - Models & Enums Added (`app/db/models.py`):
+    - Enums: `NotificationType` (9 domain types), `NotificationPriority` (HIGH, DEFAULT, LOW), `DevicePlatform` (ANDROID, IOS, WEB), `DeliveryStatus` (PENDING, PROCESSING, SENT, FAILED, PERMANENTLY_FAILED, EXPIRED).
+    - `Notification`: In-app notification record with UUID PK, RESTRICT FK to `users.id`, `UniqueConstraint("user_id", "deduplication_key")` (allowing multiple nulls, enforcing uniqueness on keys), composite index `ix_notifications_user_read_created`, index on `expires_at` (default 90 days retention).
+    - `UserDevice`: FCM device registration with UUID PK, RESTRICT FK to `users.id`, `UniqueConstraint("user_id", "device_id")`, composite index `ix_user_devices_user_active`, index on `fcm_token`.
+    - `NotificationPreference`: User preferences with UUID PK, cascade unique FK to `users.id`, check constraint `chk_notif_pref_match_min_score` (0.0 <= match_min_score <= 100.0, default 75.0), quiet hours support.
+    - `NotificationDelivery`: Push delivery queue task with UUID PK, RESTRICT FKs to `notifications.id` and `user_devices.id`, `UniqueConstraint("notification_id", "user_device_id")` (idempotent device fanout), composite index `ix_notification_deliveries_status_retry`.
+    - Relationships on `User`, `Notification`, and `UserDevice` configured with NO orphan cascades, enforcing strict history retention.
+  - Database Migrations:
+    - `alembic/versions/edc880a835c9_phase_9_2_notification_models.py`: Initial notification tables, check constraints, indexes, and enums.
+    - `alembic/versions/a2c41f9e0e57_phase_9_2_notification_history_.py`: Upgrades foreign keys (`notifications.user_id`, `user_devices.user_id`, `notification_deliveries.notification_id`, `notification_deliveries.user_device_id`) to `ON DELETE RESTRICT` to protect notification and delivery history from accidental cascade destruction.
+    - Fully reversible migrations verified via `alembic upgrade head`, `alembic downgrade -1`, `alembic upgrade head`, and `alembic check` ("No new upgrade operations detected").
+  - Repository & Service Layer (`app/services/notification.py`):
+    - Implemented user-scoped methods:
+      - `create_notification`: In-app notification creation with deduplication key handling and 90-day retention default.
+      - `get_user_notifications`: User-scoped paginated retrieval filtering expired items with optional `is_read` and `type` filters.
+      - `get_unread_count`: Non-expired unread counter.
+      - `mark_as_read`: Marks single notification read with user ownership validation and `read_at` timestamping.
+      - `mark_all_as_read`: Bulk mark-as-read for user.
+      - `register_device`: Device registration/update with cross-user token rotation (deactivating stale records on shared physical devices).
+      - `deactivate_device`: Deactivates active token on logout without deleting device or delivery history.
+      - `get_or_create_preferences` & `update_preferences`: Default preference provisioning and bounds-validated updates.
+      - `create_delivery_tasks`: Generates idempotent pending push delivery tasks for all active devices of the recipient.
+      - `get_pending_deliveries`: Queue query for pending and backoff retry-eligible tasks.
+  - Comprehensive Test Suite (`tests/test_notifications.py`):
+    - 24 comprehensive unit and integration tests (100% pass) verifying:
+      - Defaults, retention calculation, custom expiration.
+      - Deduplication key database constraint and service-level idempotency.
+      - Null deduplication key concurrency.
+      - User isolation and multi-field filtering.
+      - Expiration filtering in notification list and unread count.
+      - Single and bulk read status marking with ownership validation.
+      - User device registration, token rotation across users, and logout deactivation.
+      - Multiple active devices per user.
+      - Preference defaults, updates, unique constraint, and score check constraint.
+      - Delivery task fanout, duplicate prevention, and retry queue status queries.
+      - ON DELETE RESTRICT protection on `UserDevice`, `Notification`, and `User`.
+      - Device deactivation preserving delivery history.
+      - Explicit account deletion policy with ordered child-to-parent record lifecycle management.
+  - Quality Verification:
+    - Backend tests: `pytest` 257 of 257 passed (233 existing + 24 notification tests, 0 failures, 0 errors).
+    - Backend typing: `mypy .` strict passed with 0 issues in 75 source files.
+    - Backend linting/formatting: `ruff check .` clean, `ruff format --check` clean.
+    - Database migrations: `alembic check` clean (zero schema drift).
+    - Frontend formatting & analysis: `flutter analyze` 0 issues; 150 unit/widget tests passed.
+  - Scope Boundaries Preserved:
+    - Zero Kafka notification consumer or FCM dispatcher code introduced.
+    - Zero Git write operations performed (manual git ownership retained by developer).
 
 
 

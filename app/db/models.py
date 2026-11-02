@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -17,6 +17,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -89,6 +90,39 @@ class ScoreClassification(enum.StrEnum):
     DISQUALIFIED = "DISQUALIFIED"
 
 
+class NotificationType(enum.StrEnum):
+    MATCH_DETECTED = "MATCH_DETECTED"
+    MATCH_HIGH_PRIORITY = "MATCH_HIGH_PRIORITY"
+    MATCH_UPDATED = "MATCH_UPDATED"
+    RECOVERY_REQUEST_RECEIVED = "RECOVERY_REQUEST_RECEIVED"
+    RECOVERY_REQUEST_ACCEPTED = "RECOVERY_REQUEST_ACCEPTED"
+    RECOVERY_REQUEST_REJECTED = "RECOVERY_REQUEST_REJECTED"
+    RECOVERY_REQUEST_COMPLETED = "RECOVERY_REQUEST_COMPLETED"
+    REPORT_STATUS_CHANGED = "REPORT_STATUS_CHANGED"
+    REPORT_EXPIRING = "REPORT_EXPIRING"
+
+
+class NotificationPriority(enum.StrEnum):
+    HIGH = "HIGH"
+    DEFAULT = "DEFAULT"
+    LOW = "LOW"
+
+
+class DevicePlatform(enum.StrEnum):
+    ANDROID = "ANDROID"
+    IOS = "IOS"
+    WEB = "WEB"
+
+
+class DeliveryStatus(enum.StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    SENT = "SENT"
+    FAILED = "FAILED"
+    PERMANENTLY_FAILED = "PERMANENTLY_FAILED"
+    EXPIRED = "EXPIRED"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -125,6 +159,18 @@ class User(Base):
     )
     sessions: Mapped[list["UserSession"]] = relationship(
         "UserSession", back_populates="user", cascade="all, delete-orphan"
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification", back_populates="user"
+    )
+    devices: Mapped[list["UserDevice"]] = relationship(
+        "UserDevice", back_populates="user"
+    )
+    notification_preferences: Mapped["NotificationPreference | None"] = relationship(
+        "NotificationPreference",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
 
@@ -517,4 +563,220 @@ class Match(Base):
     )
     report_found: Mapped["Report"] = relationship(
         "Report", foreign_keys=[report_found_id], back_populates="matches_as_found"
+    )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "deduplication_key", name="uq_notifications_user_dedup"
+        ),
+        Index(
+            "ix_notifications_user_read_created",
+            "user_id",
+            "is_read",
+            "created_at",
+        ),
+        Index("ix_notifications_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    type: Mapped[NotificationType] = mapped_column(
+        Enum(NotificationType, name="notification_type_enum"),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    priority: Mapped[NotificationPriority] = mapped_column(
+        Enum(NotificationPriority, name="notification_priority_enum"),
+        nullable=False,
+        default=NotificationPriority.DEFAULT,
+    )
+    is_read: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, index=True
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deduplication_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="notifications")
+    deliveries: Mapped[list["NotificationDelivery"]] = relationship(
+        "NotificationDelivery",
+        back_populates="notification",
+    )
+
+
+class UserDevice(Base):
+    __tablename__ = "user_devices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "device_id", name="uq_user_devices_user_device"),
+        Index("ix_user_devices_user_active", "user_id", "is_active"),
+        Index("ix_user_devices_fcm_token", "fcm_token"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    fcm_token: Mapped[str] = mapped_column(Text, nullable=False)
+    platform: Mapped[DevicePlatform] = mapped_column(
+        Enum(DevicePlatform, name="device_platform_enum"), nullable=False
+    )
+    device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, index=True
+    )
+
+    last_active_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="devices")
+    deliveries: Mapped[list["NotificationDelivery"]] = relationship(
+        "NotificationDelivery",
+        back_populates="device",
+    )
+
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        CheckConstraint(
+            "match_min_score >= 0.0 AND match_min_score <= 100.0",
+            name="chk_notif_pref_match_min_score",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    push_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    in_app_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    match_alerts_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    match_min_score: Mapped[float] = mapped_column(Float, nullable=False, default=75.0)
+    match_high_priority_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    recovery_updates_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    report_status_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    quiet_hours_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    quiet_hours_start: Mapped[time | None] = mapped_column(Time, nullable=True)
+    quiet_hours_end: Mapped[time | None] = mapped_column(Time, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
+        "User", back_populates="notification_preferences"
+    )
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_id",
+            "user_device_id",
+            name="uq_notification_deliveries_notif_device",
+        ),
+        Index("ix_notification_deliveries_status_retry", "status", "next_retry_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("notifications.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    user_device_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("user_devices.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[DeliveryStatus] = mapped_column(
+        Enum(DeliveryStatus, name="delivery_status_enum"),
+        nullable=False,
+        default=DeliveryStatus.PENDING,
+        index=True,
+    )
+    retry_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
+    fcm_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_retry_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    notification: Mapped["Notification"] = relationship(
+        "Notification", back_populates="deliveries"
+    )
+    device: Mapped["UserDevice"] = relationship(
+        "UserDevice", back_populates="deliveries"
     )
