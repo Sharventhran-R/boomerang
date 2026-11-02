@@ -1041,6 +1041,21 @@
   - Scope Boundaries Preserved:
     - Phase 9 Notifications (push alerts, email, outbox triggers) remain strictly deferred.
     - Zero Git write operations performed (developer retains manual Git ownership).
+- 2026-11-02: Completed Phase 9.1 — Notification System Architecture & Specification.
+  - Scope: Architectural specification only (zero code implementation, zero database migrations, zero dependency installations).
+  - Delivered Formal Specification in `docs/notification_system_specification.md`:
+    - Architectural Topology: End-to-end Mermaid diagrams illustrating domain event emission, Kafka event backbone (`boomerang.domain.events`), Notification Consumer (`boomerang.notification_engine.group`), PostgreSQL authoritative stores, async push delivery worker, FCM HTTP/v1, and Flutter client integration.
+    - Architecture Evaluation: Rigorous analysis of Synchronous Push vs Pure Outbox Polling vs Hybrid Two-Tier Pipeline. Selected the Hybrid Two-Tier Pipeline combining atomic consumer database commits (in-app `Notification` + `NotificationDelivery` push task) with asynchronous background FCM dispatch and exponential backoff retry.
+    - Event-to-Notification Mapping: Formal matrix mapping matching lifecycle events (`match.alert_ready`), recovery request events (`recovery_request.created`, `recovery_request.updated`), and report lifecycle events (`report.resolved`, `report.expiring_soon`) to target recipients, notification types, thresholds, and deep links.
+    - Anti-Spam & Score Oscillation Guards: Defined canonical report pair deduplication keys (`uq_notifications_user_dedup`), 4-hour cooldown windows, micro-fluctuation suppression ($\Delta S < 5.0$), and silent disqualifications/demotions.
+    - Lifecycle State Machines: Formalized state diagrams for In-App Notification lifecycle (`UNREAD` -> `READ` -> `ARCHIVED`) and Push Delivery lifecycle (`PENDING` -> `PROCESSING` -> `SENT` / `RETRY` / `FAILED` / `EXPIRED`).
+    - Database Models Proposal: Specified SQLAlchemy models for `Notification`, `UserDevice`, `NotificationPreference`, and `NotificationDelivery` with check constraints, foreign keys, unique constraints, and indexes.
+    - REST API Proposal: Defined endpoints under `/api/v1/notifications` for paginated in-app feeds, unread badge counters, mark-as-read actions, preference configuration, and device token registration/deactivation.
+    - Flutter Client Integration: Outlined `NotificationService`, `NotificationRepository`, `NotificationsScreen`, unread badge icon, foreground banner handling, and deep link routing to `MatchDetailScreen`, `ReportDetailsScreen`, and `RecoveryRequestsScreen`.
+    - Privacy & Security Safeguards: Enforced zero coordinate leakage (relative proximity only), zero verification secrets in push payloads, IDOR authorization barriers, and token dissociation on user logout.
+    - Phased Implementation Roadmap: Structured sequential roadmap for Phases 9.2 through 9.8.
+  - Scope Boundaries Preserved:
+    - Specification only. No application code, migrations, or dependencies added. Zero Git write operations performed.
 
 
 
