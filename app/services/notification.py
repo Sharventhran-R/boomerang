@@ -326,9 +326,42 @@ async def update_preferences(
     return pref
 
 
+def compute_next_delivery_time(pref: NotificationPreference, now: datetime) -> datetime:
+    """Calculates next_retry_at for push delivery respecting quiet hours.
+
+    If quiet hours are enabled and current time falls inside the configured
+    window, returns the future datetime when quiet hours end. Otherwise returns now.
+    """
+    if (
+        not pref.quiet_hours_enabled
+        or pref.quiet_hours_start is None
+        or pref.quiet_hours_end is None
+    ):
+        return now
+
+    start_t = pref.quiet_hours_start
+    end_t = pref.quiet_hours_end
+    current_t = now.time()
+
+    if start_t < end_t:
+        # Same-day window, e.g. 13:00 to 15:00
+        if start_t <= current_t < end_t:
+            return datetime.combine(now.date(), end_t, tzinfo=now.tzinfo)
+    else:
+        # Overnight window, e.g. 22:00 to 07:00
+        if current_t >= start_t:
+            tomorrow = now.date() + timedelta(days=1)
+            return datetime.combine(tomorrow, end_t, tzinfo=now.tzinfo)
+        elif current_t < end_t:
+            return datetime.combine(now.date(), end_t, tzinfo=now.tzinfo)
+
+    return now
+
+
 async def create_delivery_tasks(
     db: AsyncSession,
     notification: Notification,
+    next_retry_at: datetime | None = None,
 ) -> list[NotificationDelivery]:
     """Creates pending push delivery tasks for all active devices of the user."""
     device_stmt = select(UserDevice).where(
@@ -340,6 +373,7 @@ async def create_delivery_tasks(
 
     tasks: list[NotificationDelivery] = []
     now = datetime.now(UTC)
+    effective_next_retry = next_retry_at if next_retry_at is not None else now
 
     for dev in devices:
         check_stmt = select(NotificationDelivery).where(
@@ -356,7 +390,7 @@ async def create_delivery_tasks(
             status=DeliveryStatus.PENDING,
             retry_count=0,
             max_retries=3,
-            next_retry_at=now,
+            next_retry_at=effective_next_retry,
         )
         db.add(delivery)
         tasks.append(delivery)

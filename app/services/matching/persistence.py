@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, case, func, or_, select, text, update
@@ -33,8 +34,10 @@ from app.db.models import (
     ReportStatus,
     ReportType,
 )
+from app.schemas.events import MatchAlertReadyEvent
 from app.services.matching.models import MatchScoreResult
 from app.services.matching.retrieval import MATCHING_RADIUS_METERS
+from app.services.outbox import build_match_alert_ready_event, create_outbox_event
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +194,7 @@ class MatchPersistenceService:
             Match.report_found_id,
             Match.status,
             Match.composite_score,
+            Match.updated_at,
         ).where(
             or_(
                 Match.report_missing_id == source_id,
@@ -205,9 +209,11 @@ class MatchPersistenceService:
 
         # 3. Collect candidates and build upsert payloads
         to_upsert: list[dict[str, Any]] = []
+        alert_events_to_create: list[MatchAlertReadyEvent] = []
         scored_pairs: set[tuple[uuid.UUID, uuid.UUID]] = set()
 
         now = func.now()
+        now_utc = datetime.now(UTC)
 
         for res in results:
             candidate_id = res.candidate_id
@@ -348,6 +354,73 @@ class MatchPersistenceService:
             }
             to_upsert.append(record)
 
+            if (
+                match_status == MatchStatus.ACTIVE
+                and res.alert_eligible
+                and res.composite_score >= 75.0
+            ):
+                missing_owner = authoritative_reports[missing_id].created_by_user_id
+                found_owner = authoritative_reports[found_id].created_by_user_id
+                should_emit: bool = False
+                is_update: bool = False
+                prev_score: float | None = None
+                delta: float | None = None
+
+                if existing is None:
+                    # New active match with score >= 75.0 and alert_eligible
+                    should_emit = True
+                    is_update = False
+                else:
+                    # Rescored match: check Phase 9.1 update criteria
+                    # 1. Transitions into High Priority (< 80 to >= 80)
+                    # 2. Improves by >= +10.0 points
+                    # 3. Micro-fluctuation filter (< 5 pts suppressed)
+                    # 4. Minimum 4-hour cooldown
+                    prev_score = existing.composite_score
+                    delta = round(res.composite_score - prev_score, 2)
+                    cooldown_satisfied = True
+                    if existing.updated_at is not None:
+                        up_at = (
+                            existing.updated_at
+                            if existing.updated_at.tzinfo
+                            else existing.updated_at.replace(tzinfo=UTC)
+                        )
+                        cooldown_satisfied = (now_utc - up_at) >= timedelta(hours=4)
+
+                    transitions_high_priority = (
+                        prev_score < 80.0 and res.composite_score >= 80.0
+                    )
+                    improves_significantly = delta >= 10.0
+
+                    if (
+                        (transitions_high_priority or improves_significantly)
+                        and delta >= 5.0
+                        and cooldown_satisfied
+                    ):
+                        should_emit = True
+                        is_update = True
+
+                if should_emit:
+                    alert_event = build_match_alert_ready_event(
+                        match_id=record["id"],
+                        report_missing_id=missing_id,
+                        report_found_id=found_id,
+                        missing_owner_id=missing_owner,
+                        found_owner_id=found_owner,
+                        source_report_id=source_id,
+                        source_owner_id=source_report.created_by_user_id,
+                        composite_score=res.composite_score,
+                        classification=res.classification,
+                        alert_eligible=res.alert_eligible,
+                        is_update=is_update,
+                        previous_score=prev_score,
+                        score_delta=delta,
+                        evidence_summary=res.evidence_summary,
+                        distance_meters=res.distance.distance_meters,
+                        matched_category=res.identity.matched_category,
+                    )
+                    alert_events_to_create.append(alert_event)
+
         # 4. Sort batch deterministically by canonical key to prevent deadlocks
         to_upsert.sort(key=lambda r: (r["report_missing_id"], r["report_found_id"]))
 
@@ -390,6 +463,9 @@ class MatchPersistenceService:
                 ),
             )
             await session.execute(upsert_stmt)
+
+            for alert_evt in alert_events_to_create:
+                await create_outbox_event(session, alert_evt)
 
         # 6. Reconcile existing matches not returned in scored_pairs.
         # Distinguish genuine hard-filter failures (distance > 5km, incompatible

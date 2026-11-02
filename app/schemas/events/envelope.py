@@ -11,6 +11,7 @@ class AggregateType(enum.StrEnum):
 
     REPORT = "report"
     RECOVERY_REQUEST = "recovery_request"
+    MATCH = "match"
 
 
 class EventType(enum.StrEnum):
@@ -21,6 +22,7 @@ class EventType(enum.StrEnum):
     REPORT_RESOLVED = "report.resolved"
     RECOVERY_REQUEST_CREATED = "recovery_request.created"
     RECOVERY_REQUEST_UPDATED = "recovery_request.updated"
+    MATCH_ALERT_READY = "match.alert_ready"
 
 
 class EventEnvelope[PayloadT: BaseModel](BaseModel):
@@ -102,6 +104,13 @@ class EventEnvelope[PayloadT: BaseModel](BaseModel):
                     f"event_type '{self.event_type}' requires aggregate_type "
                     f"'{req_val}', got '{self.aggregate_type.value}'"
                 )
+        elif self.event_type.startswith("match."):
+            if self.aggregate_type != AggregateType.MATCH:
+                match_val = AggregateType.MATCH.value
+                raise ValueError(
+                    f"event_type '{self.event_type}' requires aggregate_type "
+                    f"'{match_val}', got '{self.aggregate_type.value}'"
+                )
 
         # 2. Verify aggregate_id matches entity ID in payload based on aggregate_type
         payload = self.payload
@@ -110,6 +119,8 @@ class EventEnvelope[PayloadT: BaseModel](BaseModel):
             payload_entity_id = getattr(payload, "report_id", None)
         elif self.aggregate_type == AggregateType.RECOVERY_REQUEST:
             payload_entity_id = getattr(payload, "recovery_request_id", None)
+        elif self.aggregate_type == AggregateType.MATCH:
+            payload_entity_id = getattr(payload, "match_id", None)
 
         if payload_entity_id is not None and payload_entity_id != self.aggregate_id:
             raise ValueError(

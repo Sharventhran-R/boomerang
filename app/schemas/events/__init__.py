@@ -11,6 +11,10 @@ from app.schemas.events.envelope import (
     EventEnvelope,
     EventType,
 )
+from app.schemas.events.match import (
+    MatchAlertReadyEvent,
+    MatchAlertReadyPayload,
+)
 from app.schemas.events.parser import (
     BoomerangEvent,
     parse_event,
@@ -39,6 +43,8 @@ __all__ = [
     "EventError",
     "EventParseError",
     "EventType",
+    "MatchAlertReadyEvent",
+    "MatchAlertReadyPayload",
     "RecoveryRequestCreatedEvent",
     "RecoveryRequestCreatedPayload",
     "RecoveryRequestUpdatedEvent",

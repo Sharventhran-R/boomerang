@@ -299,4 +299,3 @@ async def get_match_detail(
         report_found=found_summary,
         user_role=user_role,
     )
-

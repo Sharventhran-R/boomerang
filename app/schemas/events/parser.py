@@ -7,6 +7,7 @@ from app.schemas.events.common import (
     UnsupportedEventVersionError,
 )
 from app.schemas.events.envelope import EventType
+from app.schemas.events.match import MatchAlertReadyEvent
 from app.schemas.events.recovery import (
     RecoveryRequestCreatedEvent,
     RecoveryRequestUpdatedEvent,
@@ -23,6 +24,7 @@ type BoomerangEvent = (
     | ReportResolvedEvent
     | RecoveryRequestCreatedEvent
     | RecoveryRequestUpdatedEvent
+    | MatchAlertReadyEvent
 )
 
 
@@ -89,3 +91,5 @@ def parse_event(raw: str | bytes | dict[str, Any]) -> BoomerangEvent:
             return RecoveryRequestCreatedEvent.model_validate(data)
         case EventType.RECOVERY_REQUEST_UPDATED:
             return RecoveryRequestUpdatedEvent.model_validate(data)
+        case EventType.MATCH_ALERT_READY:
+            return MatchAlertReadyEvent.model_validate(data)

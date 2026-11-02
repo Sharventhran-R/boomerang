@@ -16,11 +16,14 @@ from app.db.models import (
     Report,
     ReportCategory,
     ReportStatus,
+    ScoreClassification,
 )
 from app.schemas.events import (
     AggregateType,
     BoomerangEvent,
     EventType,
+    MatchAlertReadyEvent,
+    MatchAlertReadyPayload,
     RecoveryRequestCreatedEvent,
     RecoveryRequestCreatedPayload,
     RecoveryRequestUpdatedEvent,
@@ -201,6 +204,57 @@ def build_recovery_request_updated_event(
         producer=PRODUCER_NAME,
         aggregate_id=recovery_req.id,
         aggregate_type=AggregateType.RECOVERY_REQUEST,
+        correlation_id=correlation_id,
+        payload=payload,
+    )
+
+
+def build_match_alert_ready_event(
+    match_id: uuid.UUID,
+    report_missing_id: uuid.UUID,
+    report_found_id: uuid.UUID,
+    missing_owner_id: uuid.UUID,
+    found_owner_id: uuid.UUID,
+    source_report_id: uuid.UUID,
+    source_owner_id: uuid.UUID,
+    composite_score: float,
+    classification: ScoreClassification,
+    alert_eligible: bool = True,
+    is_update: bool = False,
+    previous_score: float | None = None,
+    score_delta: float | None = None,
+    evidence_summary: str | None = None,
+    distance_meters: float | None = None,
+    matched_category: str | None = None,
+    correlation_id: uuid.UUID | None = None,
+) -> MatchAlertReadyEvent:
+    now = datetime.now(UTC)
+    payload = MatchAlertReadyPayload(
+        match_id=match_id,
+        report_missing_id=report_missing_id,
+        report_found_id=report_found_id,
+        missing_owner_id=missing_owner_id,
+        found_owner_id=found_owner_id,
+        source_report_id=source_report_id,
+        source_owner_id=source_owner_id,
+        composite_score=composite_score,
+        classification=classification,
+        alert_eligible=alert_eligible,
+        is_update=is_update,
+        previous_score=previous_score,
+        score_delta=score_delta,
+        evidence_summary=evidence_summary,
+        distance_meters=distance_meters,
+        matched_category=matched_category,
+    )
+    return MatchAlertReadyEvent(
+        event_id=uuid.uuid4(),
+        event_type=EventType.MATCH_ALERT_READY,
+        event_version=1,
+        occurred_at=now,
+        producer=PRODUCER_NAME,
+        aggregate_id=match_id,
+        aggregate_type=AggregateType.MATCH,
         correlation_id=correlation_id,
         payload=payload,
     )

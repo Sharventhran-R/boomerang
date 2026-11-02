@@ -30,6 +30,10 @@
 - [x] Phase 8.3.1 — Gradual time score refinement.
 - [x] Phase 8.4 — Kafka matching worker.
 - [x] Phase 8.5 — Persistent match records and lifecycle management.
+- [x] Phase 8.6 — Matching API and Flutter integration.
+- [x] Phase 9.1 — Notification system architecture and specification.
+- [x] Phase 9.2 — Notification database models, migrations, and repository.
+- [x] Phase 9.3 — Kafka event contracts and notification consumer.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1056,7 +1060,60 @@
     - Phased Implementation Roadmap: Structured sequential roadmap for Phases 9.2 through 9.8.
   - Scope Boundaries Preserved:
     - Specification only. No application code, migrations, or dependencies added. Zero Git write operations performed.
-- 2026-11-02: Completed Phase 9.2 — Notification Database Models & Migrations.
+- 2026-11-02: Completed Phase 9.3 — Kafka Event Contracts & Notification Consumer.
+  - Scope: Kafka-driven notification ingestion pipeline connecting domain events (`match.alert_ready`, `recovery_request.created`, `recovery_request.updated`, `report.resolved`, `report.updated`) with Phase 9.2 persistent in-app notifications and push delivery tasks. Strictly zero actual FCM network calls, zero notification REST APIs, and zero Flutter notification UI (reserved for Phases 9.4+).
+  - Event Contracts & Envelopes (`app/schemas/events/`):
+    - Added `AggregateType.MATCH = "match"` and `EventType.MATCH_ALERT_READY = "match.alert_ready"` to `envelope.py` with envelope prefix validation.
+    - Implemented `MatchAlertReadyPayload` and `MatchAlertReadyEvent = EventEnvelope[MatchAlertReadyPayload]` in `app/schemas/events/match.py` with strict Pydantic model validation: opposite reports, valid owner mappings, `alert_eligible == True`, relative `distance_meters` only (privacy protection; zero raw GPS coordinates emitted).
+    - Registered `MatchAlertReadyEvent` in `app/schemas/events/parser.py` under the `BoomerangEvent` union with exhaustive pattern matching.
+    - Exported match event schemas in `app/schemas/events/__init__.py`.
+  - Transactional Outbox & Persistence Emission:
+    - Added `build_match_alert_ready_event(...)` in `app/services/outbox.py`.
+    - Updated `MatchPersistenceService.record_matches()` in `app/services/matching/persistence.py` to evaluate alert eligibility and enqueue `build_match_alert_ready_event` into `outbox_events` within the exact same database session/transaction right after upserting matches. Score >= 75.0 and `alert_eligible == True` trigger alert events; rescored updates follow Phase 9.1 rules (4-hour cooldown, $\Delta S \ge 5.0$, significant improvement $\Delta S \ge 10.0$ or transition to High Priority $\ge 80$).
+  - Notification Service Enhancements (`app/services/notification.py`):
+    - Implemented `compute_next_delivery_time(pref, now)` calculating delivery buffering for quiet hours (handling both same-day windows and overnight windows e.g. 22:00 to 07:00).
+    - Updated `create_delivery_tasks(db, notification, next_retry_at=...)` accepting optional `next_retry_at` timestamp.
+  - Notification Consumer Engine (`app/services/notification_consumer.py`):
+    - Implemented dedicated consumer group `boomerang.notification_engine.group` using existing Phase 7 consumer framework (`EventConsumer`, `HandlerRegistry`, `ConsumerEvent` idempotency barrier, manual offset commit).
+    - Implemented `NotificationEventHandler` handling:
+      - `match.alert_ready`: High Priority ($S \ge 80$) notifies both report authors; Possible Match ($75 \le S < 80$) notifies newly reporting user only (`source_owner_id`); updates enforce 4-hour cooldown and anti-oscillation filters; canonical dedup keys `match:initial:{min_id}:{max_id}` and `match:update:{min_id}:{max_id}:{event_id}`.
+      - `recovery_request.created`: Mandatory claim alert for report author (`recipient_id`), zero verification secret leaks, canonical dedup key `recovery_request:created:{request_id}`.
+      - `recovery_request.updated`: Status-dependent alerts (`ACCEPTED` $\rightarrow$ requester, `REJECTED` $\rightarrow$ requester, `COMPLETED` $\rightarrow$ both requester & recipient), canonical dedup key `recovery_request:status:{STATUS}:{request_id}`.
+      - `report.resolved`: Authoritative author notification upon resolution, canonical dedup key `report:status:RESOLVED:{report_id}`.
+      - `report.updated`: Meaningful non-ACTIVE status changes (e.g. `CANCELLED`, `EXPIRED`) notify author; routine edits ignored, canonical dedup key `report:status:{STATUS}:{report_id}`.
+    - Preference evaluation on delivery: respects `in_app_enabled`, `push_enabled`, `match_alerts_enabled`, `match_min_score`, `match_high_priority_only`, and quiet hours.
+  - Comprehensive Test Suite (`tests/test_notification_consumer.py`):
+    - 19 comprehensive unit and integration tests (100% pass) verifying:
+      - `test_match_alert_ready_high_priority_notifies_both_owners`
+      - `test_match_alert_ready_possible_match_notifies_source_owner_only`
+      - `test_match_alert_ready_below_75_is_suppressed`
+      - `test_match_alert_ready_update_significant_improvement`
+      - `test_match_alert_ready_update_transitions_high_priority`
+      - `test_match_alert_ready_update_micro_fluctuation_suppressed`
+      - `test_match_alert_ready_update_cooldown_enforced`
+      - `test_recovery_request_created_notification`
+      - `test_recovery_request_updated_routing`
+      - `test_report_resolved_notification`
+      - `test_report_updated_meaningful_status_transition_vs_routine_edit`
+      - `test_preference_filters_suppress_matching_alerts`
+      - `test_preference_in_app_and_push_channels_and_quiet_hours`
+      - `test_duplicate_event_delivery_skipped_by_idempotency_barrier`
+      - `test_unrelated_domain_event_safely_ignored`
+      - `test_outbox_event_emitted_during_match_persistence`
+      - `test_preference_in_app_disabled_skips_in_app_notification`
+      - `test_preference_push_disabled_creates_in_app_only`
+      - `test_transaction_rollback_consistency_on_handler_failure`
+      - `test_mandatory_recovery_request_not_suppressed_by_in_app_disabled`
+  - Quality Verification:
+    - Backend tests: `pytest` 277 of 277 passed (0 failures, 0 errors across 18 test modules in 2m 00s).
+    - Backend typing: `mypy .` strict passed with 0 issues across 78 source files.
+    - Backend linting/formatting: `ruff check .` clean (0 errors), `ruff format --check app/ tests/ alembic/` clean (74 files formatted).
+    - Database schema: `alembic check` clean (no unmanaged schema drift).
+    - Frontend quality: `flutter analyze` 0 issues; 149 unit/widget tests passed.
+  - Scope Boundaries Preserved:
+    - Strictly Phase 9.3 scope: no actual FCM network dispatcher, no notification REST endpoints, no Flutter notification UI.
+    - Zero Git write operations performed (manual git ownership retained by developer).
+
   - Scope: Database foundation layer (SQLAlchemy models, Alembic migration, repository layer, database integration tests). Strictly zero Kafka consumers, no FCM client, no FastAPI notification endpoints, no Flutter UI (reserved for subsequent Phase 9 subphases).
   - Models & Enums Added (`app/db/models.py`):
     - Enums: `NotificationType` (9 domain types), `NotificationPriority` (HIGH, DEFAULT, LOW), `DevicePlatform` (ANDROID, IOS, WEB), `DeliveryStatus` (PENDING, PROCESSING, SENT, FAILED, PERMANENTLY_FAILED, EXPIRED).
