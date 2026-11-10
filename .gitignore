@@ -10,3 +10,10 @@ dist/
 .antigravity/scratchpad/
 stitch_export/
 
+# Secrets & Service Account Credentials
+*-adminsdk*.json
+*firebase-adminsdk*.json
+*service-account*.json
+*.pem
+*.key
+

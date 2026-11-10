@@ -47,6 +47,26 @@ class Settings(BaseSettings):
     CONSUMER_MAX_RETRY_DELAY_SECONDS: float = Field(default=30.0, gt=0)
     CONSUMER_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
 
+    # Firebase Cloud Messaging & Push Dispatcher
+    FIREBASE_CREDENTIALS_PATH: str | None = None
+    FIREBASE_VAPID_PUBLIC_KEY: str | None = None
+    WEB_PUSH_BASE_URL: str = Field(
+        default="https://localhost:3000",
+        description=(
+            "Base URL for Web Push notification click actions. "
+            "Must be configured to a valid HTTPS origin in production "
+            "(e.g., 'https://app.example.com')."
+        ),
+    )
+    PUSH_DISPATCHER_ENABLED: bool = False
+    PUSH_DISPATCHER_POLL_INTERVAL_SECONDS: float = Field(default=2.0, gt=0)
+    PUSH_DISPATCHER_BATCH_SIZE: int = Field(default=50, ge=1, le=500)
+    PUSH_DISPATCHER_MAX_RETRIES: int = Field(default=3, ge=1)
+    PUSH_DISPATCHER_INITIAL_RETRY_DELAY_SECONDS: float = Field(default=2.0, gt=0)
+    PUSH_DISPATCHER_MAX_RETRY_DELAY_SECONDS: float = Field(default=300.0, gt=0)
+    PUSH_DISPATCHER_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
+    PUSH_DISPATCHER_STALE_PROCESSING_SECONDS: float = Field(default=300.0, gt=0)
+
     @property
     def sync_database_url(self) -> str:
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

@@ -15,7 +15,7 @@ disallow_untyped_defs = true
 exclude = ["^frontend/", "^\\.venv/"]
 
 [[tool.mypy.overrides]]
-module = ["aiokafka.*"]
+module = ["aiokafka.*", "firebase_admin.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

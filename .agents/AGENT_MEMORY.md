@@ -34,6 +34,7 @@
 - [x] Phase 9.1 — Notification system architecture and specification.
 - [x] Phase 9.2 — Notification database models, migrations, and repository.
 - [x] Phase 9.3 — Kafka event contracts and notification consumer.
+- [x] Phase 9.4 — Firebase configuration verification and FCM push dispatcher.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1163,7 +1164,95 @@
     - Zero Kafka notification consumer or FCM dispatcher code introduced.
     - Zero Git write operations performed (manual git ownership retained by developer).
 
+- 2026-11-10: Completed Phase 9.4 — Firebase Configuration Verification and FCM Implementation.
+  - Configuration & Credentials Verification:
+    - Verified Android Firebase configuration belongs to project `boomerang-53f86` and application ID `com.example.frontend`.
+    - Repositioned configuration file to target path `frontend/android/app/google-services.json` (untracked, preserved for developer manual staging).
+    - Verified Firebase Admin SDK service account at `D:\PROJECTS\Boomerang-Secrets\firebase-adminsdk.json` belongs to project `boomerang-53f86`, validates all required credentials fields, and initializes without logging private keys.
+    - Protected Git safety: added patterns `*-adminsdk*.json`, `*firebase-adminsdk*.json`, `*service-account*.json`, `*.pem`, `*.key` to root `.gitignore`.
+  - Backend Configuration (`app/core/config.py` & `.env.example`):
+    - Added `FIREBASE_CREDENTIALS_PATH`, `FIREBASE_VAPID_PUBLIC_KEY`, `PUSH_DISPATCHER_ENABLED` (default False), `PUSH_DISPATCHER_POLL_INTERVAL_SECONDS` (2.0s), `PUSH_DISPATCHER_BATCH_SIZE` (50), `PUSH_DISPATCHER_MAX_RETRIES` (3), `PUSH_DISPATCHER_INITIAL_RETRY_DELAY_SECONDS` (2.0s), `PUSH_DISPATCHER_MAX_RETRY_DELAY_SECONDS` (300.0s), `PUSH_DISPATCHER_BACKOFF_MULTIPLIER` (2.0), `PUSH_DISPATCHER_STALE_PROCESSING_SECONDS` (300.0s).
+  - Firebase Cloud Messaging Integration (`app/services/fcm.py`):
+    - `get_firebase_app(credentials_path)`: Singleton thread-safe app initialization without logging credential secrets.
+    - `build_deep_link(type, data)`: Canonical deep-link generator for matches, recovery requests, reports, and notifications.
+    - `build_fcm_data(notification, deep_link)`: Privacy-preserving payload serializer (whitelisted context only, stringified values, strictly strips raw GPS coordinates and recovery verification claim proofs).
+    - `build_fcm_message(notification, device)`: Platform-tailored payloads with `AndroidConfig` (channel_id, priority, sound, click_action) and `WebpushConfig` (headers, icon, badge).
+    - `FirebaseAdminFCMProvider`: Async execution using `asyncio.to_thread(messaging.send)` for non-blocking I/O with comprehensive error classification (`is_unregistered`, `is_retryable`, permanent).
+    - `MockFCMProvider`: Testing provider for deterministic offline verification.
+  - Push Dispatcher Engine (`app/services/push_dispatcher.py`):
+    - Safe concurrency control: `claim_batch()` uses `SELECT ... FOR UPDATE SKIP LOCKED` and immediately commits claimed rows to `PROCESSING` to release table row locks before network dispatch begins.
+    - Crash recovery: reclaims stale `PROCESSING` leases older than 300s, increments retry count, and prevents infinite loops.
+    - In-App Independence Invariant: Network failures, timeouts, and unregistered device tokens never alter, roll back, or invalidate the authoritative in-app `Notification` record.
+    - Token invalidation handling: when FCM returns `UnregisteredError` or invalid token codes, task is marked `PERMANENTLY_FAILED` and `UserDevice.is_active` is automatically set to `False` in PostgreSQL.
+    - Retry mechanism: transient errors (503, 429, timeouts) reschedule with exponential backoff and full jitter ($t = 2^{\text{retry\_count}} \times \text{initial\_delay} + \text{jitter}$).
+    - Pruning: expired notifications and deactivated devices are transitioned immediately without wasted FCM calls.
+  - FastAPI Lifecycle & CLI Runner:
+    - `app/main.py`: Lifespan context manager gracefully starts and cancels the `PushDispatcher` loop when enabled.
+    - `scripts/run_push_dispatcher.py`: Operations CLI supporting `--status`, `--once`, `--replay-failed`, `--batch-size`, and `--poll-interval`.
+  - Comprehensive Test Suite (`tests/test_push_dispatcher.py`):
+    - 18 automated tests (100% pass) verifying deep-link generation, privacy invariants, Android/Web payload structures, error classification, successful delivery, token invalidation and device retirement, exponential backoff, max retries, lease crash recovery, expired notification skipping, deactivated device skipping, multi-device fanout, failed task replay, backlog counters, in-app independence, and FastAPI lifespan integration.
+  - Quality Verification:
+    - Backend tests: `pytest` 295 of 295 passed across 19 modules in 2m 27s (0 failures, 0 errors).
+    - Backend typing: `mypy .` strict passed with 0 issues in 82 source files.
+    - Backend linting/formatting: `ruff check .` clean (0 errors), `ruff format --check .` clean (89 files checked).
+    - Database schema: `alembic check` clean (no unmanaged schema drift).
+    - Frontend quality: `flutter analyze` 0 issues (63.6s); 149 of 149 unit/widget tests passed.
+  - Scope Boundaries Preserved:
+    - Strictly Phase 9.4 scope: no notification REST APIs (Phase 9.5), no Flutter notification UI (Phase 9.6).
+    - Zero Git write operations performed (manual git ownership retained by developer).
 
+- 2026-11-10: Completed Phase 9.4 — Final Reliability Audit & Hardening.
+  - Audit Item 1: Mathematically Bounded Jitter & Exponential Backoff:
+    - Inspected `calculate_backoff()` in `app/services/push_dispatcher.py`.
+    - Corrected previous `exponential_delay + jitter` calculation which could exceed `max_delay`.
+    - Implemented strictly bounded full jitter: $t = \max(\min(0.1, \text{initial\_delay}), \min(\text{max\_delay}, \text{random}(0, 2^{\text{attempt}-1} \times \text{initial\_delay})))$.
+    - Added deterministic test hook (`random_fn: Callable[[], float] | None = None`) to verify edge cases ($0.0$, $1.0$, and intermediate floats).
+    - Verified 1-based attempt indexing with strict clamping to prevent negative exponentiation or negative backoff intervals.
+  - Audit Item 2: Decoupled Sender ID Mismatch from Device Token Invalidation:
+    - Updated `app/services/fcm.py` error classification: `messaging.SenderIdMismatchError` is classified as an infrastructure/configuration error (`is_config_error = True`) rather than an invalid token (`is_unregistered = False`).
+    - Updated `app/services/push_dispatcher.py`: when `result.is_config_error` occurs, task is marked `PERMANENTLY_FAILED` with an alert log, but `UserDevice.is_active` remains strictly `True`.
+    - Added regression test `test_sender_id_mismatch_preserves_device_active`.
+  - Audit Item 3: Firebase Unconfigured Safe Startup & Delivery Deferral:
+    - Verified FastAPI lifespan and CLI runner start safely without `FIREBASE_CREDENTIALS_PATH`.
+    - Added `is_configured(self) -> bool` protocol to `FCMProvider`, `FirebaseAdminFCMProvider`, and `MockFCMProvider`.
+    - When unconfigured, `PushDispatcher.claim_batch()` immediately returns `[]` with an operational warning; `dispatch_delivery()` defers task back to `PENDING` without falsely marking delivery `SENT` or `PERMANENTLY_FAILED`.
+    - Tasks remain safely queued in `PENDING` until credentials become available.
+    - Added regression test `test_unconfigured_firebase_preserves_pending_deliveries`.
+  - Audit Item 4: Dispatcher Concurrency, Stale Lease Recovery & Distributed Limitations:
+    - Verified mutual exclusion: `claim_batch()` uses `SELECT ... FOR UPDATE SKIP LOCKED` and immediately commits claimed rows to `PROCESSING` to release table row locks before network dispatch begins (zero database transactions held during external FCM network calls).
+    - Hardened stale lease recovery outcome persistence: reloads delivery row using `.with_for_update()` and explicitly guards against overwriting terminal `SENT` or `EXPIRED` status if a lagging worker wakes up after a lease timeout.
+    - Added regression test `test_stale_lease_recovery_does_not_overwrite_sent`.
+    - Documented at-least-once push semantics and process crash limitations: because external push gateways (FCM/APNs) do not participate in PostgreSQL 2PC, a process crash occurring after FCM HTTP 200 receipt but before DB commit leaves the task in `PROCESSING`, which will be reclaimed and redelivered after 300s.
+  - Audit Item 5: Configuration & Secret Hygiene:
+    - Confirmed credentials file resides outside repository at `D:\PROJECTS\Boomerang-Secrets\firebase-adminsdk.json`.
+    - Verified `.env.example` contains only empty placeholders.
+    - Verified root `.gitignore` excludes `*-adminsdk*.json`, `*firebase-adminsdk*.json`, `*service-account*.json`, `*.pem`, `*.key`.
+    - Verified `google-services.json` belongs to project `boomerang-53f86` and package `com.example.frontend`.
+  - Quality Verification:
+    - Backend tests: `pytest` 298 of 298 passed across 20 modules (21 push dispatcher tests including 3 new audit regression tests).
+    - Backend typing: `mypy .` strict passed with 0 issues in 82 source files.
+    - Backend linting/formatting: `ruff check .` clean (0 errors), `ruff format --check .` clean (89 files checked).
+    - Database schema: `alembic check` clean (zero unmanaged drift).
+    - Frontend quality: `flutter analyze` 0 issues; 149 of 149 unit/widget tests passed.
+  - Scope Boundaries Preserved:
+    - Zero Phase 9.5 or 9.6 code introduced.
+    - Strictly zero Git write operations performed (manual git ownership retained by developer).
+
+- 2026-11-10: Completed Phase 9.4 — Web Push Compatibility & URL Decoupling Verification.
+  - Inspection & Web Push Compatibility Hardening:
+    - Inspected `WebpushConfig` in `app/services/fcm.py` and discovered `fcm_options=messaging.WebpushFCMOptions(link=...)` was previously omitted.
+    - Added `build_web_push_link(notification_type, data, base_url)` to generate valid HTTPS URLs tailored to web browser click handlers.
+    - Attached `messaging.WebpushFCMOptions(link=web_link)` to `WebpushConfig` so browser notification clicks resolve to official Web Push endpoints.
+    - Strictly decoupled Android app deep links (`boomerang://...`) from Web Push click destinations (`https://...`).
+    - Configurable Origin: Added `WEB_PUSH_BASE_URL` (default `https://localhost:3000`) in `app/core/config.py` and `.env.example`, documenting that it must be configured to the production HTTPS origin before deployment.
+    - Privacy Invariants: Verified that sensitive data (exact GPS coordinates, auth tokens, user IDs, and verification claim secrets) are never embedded in Web Push URLs.
+  - Quality Verification:
+    - Targeted FCM tests: 25 of 25 passed in `tests/test_push_dispatcher.py` (including 4 new tests: `test_build_web_push_link_destinations`, `test_build_web_push_link_privacy_invariants`, `test_build_web_push_link_custom_and_fallback_origins`, and `test_android_and_web_destinations_independent`).
+    - Backend typecheck: `mypy .` strict passed with 0 issues in 82 source files.
+    - Backend linter & formatter: `ruff check .` clean (0 errors), `ruff format --check .` clean (89 files checked).
+  - Scope Boundaries:
+    - Strictly Phase 9.4 push dispatcher and payload scope. Zero Phase 9.7 frontend deep linking or service worker logic implemented.
+    - Strictly zero Git write operations executed.
 
 
 

@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request
@@ -13,7 +16,37 @@ from app.api.reports import reports_router
 from app.core.config import settings
 from app.db.database import get_db
 
-app = FastAPI(title="Community Missing Item & Asset Tracker")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    dispatcher_task: asyncio.Task[None] | None = None
+    stop_event: asyncio.Event | None = None
+
+    if settings.PUSH_DISPATCHER_ENABLED:
+        from app.services.push_dispatcher import PushDispatcher
+
+        stop_event = asyncio.Event()
+        dispatcher = PushDispatcher()
+        dispatcher_task = asyncio.create_task(
+            dispatcher.run_loop(stop_event=stop_event)
+        )
+
+    try:
+        yield
+    finally:
+        if stop_event is not None and dispatcher_task is not None:
+            stop_event.set()
+            try:
+                await asyncio.wait_for(dispatcher_task, timeout=5.0)
+            except (TimeoutError, asyncio.CancelledError):
+                dispatcher_task.cancel()
+
+
+app = FastAPI(
+    title="Community Missing Item & Asset Tracker",
+    lifespan=lifespan,
+)
+
 
 app.add_middleware(
     CORSMiddleware,

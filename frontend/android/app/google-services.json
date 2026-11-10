@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "70664060069",
+    "project_id": "boomerang-53f86",
+    "storage_bucket": "boomerang-53f86.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70664060069:android:8fda64b0f7259db6b6a14c",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNuAsqtEEaa8JpChxWhNL1P7lpFNY7JXg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

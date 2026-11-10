@@ -353,7 +353,9 @@ class Notification(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, name="notification_type_enum"), nullable=False, index=True
+        Enum(NotificationType, name="notification_type_enum"),
+        nullable=False,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -363,8 +365,12 @@ class Notification(Base):
         nullable=False,
         default=NotificationPriority.DEFAULT,
     )
-    is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
-    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_read: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, index=True
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     deduplication_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -376,7 +382,9 @@ class Notification(Base):
 
     user: Mapped["User"] = relationship("User", back_populates="notifications")
     deliveries: Mapped[list["NotificationDelivery"]] = relationship(
-        "NotificationDelivery", back_populates="notification", cascade="all, delete-orphan"
+        "NotificationDelivery",
+        back_populates="notification",
+        cascade="all, delete-orphan",
     )
 
 
@@ -400,7 +408,9 @@ class UserDevice(Base):
     )
     device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, index=True
+    )
 
     last_active_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -409,7 +419,10 @@ class UserDevice(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship("User", back_populates="devices")
@@ -431,24 +444,42 @@ class NotificationPreference(Base):
         pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
     )
     push_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     in_app_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    match_alerts_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    match_alerts_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
     match_min_score: Mapped[float] = mapped_column(Float, nullable=False, default=75.0)
-    match_high_priority_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    recovery_updates_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    report_status_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    quiet_hours_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    match_high_priority_only: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    recovery_updates_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    report_status_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    quiet_hours_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     quiet_hours_start: Mapped[time | None] = mapped_column(Time, nullable=True)
     quiet_hours_end: Mapped[time | None] = mapped_column(Time, nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="notification_preferences")
+    user: Mapped["User"] = relationship(
+        "User", back_populates="notification_preferences"
+    )
 
 
 class NotificationDelivery(Base):
@@ -479,13 +510,19 @@ class NotificationDelivery(Base):
     next_retry_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    notification: Mapped["Notification"] = relationship("Notification", back_populates="deliveries")
-    device: Mapped["UserDevice"] = relationship("UserDevice", back_populates="deliveries")
+    notification: Mapped["Notification"] = relationship(
+        "Notification", back_populates="deliveries"
+    )
+    device: Mapped["UserDevice"] = relationship(
+        "UserDevice", back_populates="deliveries"
+    )
 ```
 
 ---
