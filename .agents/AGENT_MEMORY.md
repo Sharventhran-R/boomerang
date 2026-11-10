@@ -1254,5 +1254,18 @@
     - Strictly Phase 9.4 push dispatcher and payload scope. Zero Phase 9.7 frontend deep linking or service worker logic implemented.
     - Strictly zero Git write operations executed.
 
+- 2026-11-10: Investigated & Resolved GitGuardian Alert on Commit 2df6882:
+  - Root Cause Investigation:
+    - GitGuardian flagged Generic High Entropy Secret on mock `fcm_token` strings (`web_fcm_token_456` and `unregistered_web_token`) associated with web `UserDevice` fixtures in `tests/test_push_dispatcher.py`.
+    - Conclusively confirmed as a 100% false positive on synthetic offline test fixtures: no real Firebase service accounts, VAPID private keys, or FCM registration tokens were ever committed or exposed.
+  - Remediation Implemented:
+    - Renamed test fixture tokens to clearly identifiable mock values (`mock_web_test_token_456`, `mock_android_test_token_123`).
+    - Added inline GitGuardian suppression comment (`# ggignore`) to mock token definitions.
+    - Added root `.gitguardian.yaml` configuring narrow `ignored_matches` for the synthetic test fixture values.
+  - Verification:
+    - Full pytest suite: 302 of 302 tests passed.
+    - Static analysis: `ruff check`, `ruff format --check`, and strict `mypy .` clean (0 errors).
+    - Git safety: zero Git write operations executed.
+
 
 

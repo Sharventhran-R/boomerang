@@ -708,7 +708,9 @@ async def test_push_dispatcher_multi_device_fanout(
         user, fcm_token="valid_phone_token", platform=DevicePlatform.ANDROID
     )
     dev_unreg = await push_ctx.create_device(
-        user, fcm_token="unregistered_web_token", platform=DevicePlatform.WEB
+        user,
+        fcm_token="unregistered_web_token",  # ggignore
+        platform=DevicePlatform.WEB,
     )
     notif = await push_ctx.create_notification(user)
 
@@ -1153,14 +1155,14 @@ def test_android_and_web_destinations_independent() -> None:
         id=uuid.uuid4(),
         user_id=user_id,
         device_id="android-phone-1",
-        fcm_token="android_fcm_token_123",
+        fcm_token="mock_android_test_token_123",  # ggignore
         platform=DevicePlatform.ANDROID,
     )
     web_device = UserDevice(
         id=uuid.uuid4(),
         user_id=user_id,
         device_id="web-browser-1",
-        fcm_token="web_fcm_token_456",
+        fcm_token="mock_web_test_token_456",  # ggignore
         platform=DevicePlatform.WEB,
     )
 
@@ -1168,7 +1170,7 @@ def test_android_and_web_destinations_independent() -> None:
     msg_android = build_fcm_message(
         notif, android_device, web_base_url="https://app.boomerang.example.com"
     )
-    assert msg_android.token == "android_fcm_token_123"
+    assert msg_android.token == "mock_android_test_token_123"
     # Mobile app intent deep link in data payload
     assert msg_android.data["deep_link"] == f"boomerang://matches/{match_id}"
     assert msg_android.android is not None
@@ -1183,7 +1185,7 @@ def test_android_and_web_destinations_independent() -> None:
     msg_web = build_fcm_message(
         notif, web_device, web_base_url="https://app.boomerang.example.com"
     )
-    assert msg_web.token == "web_fcm_token_456"
+    assert msg_web.token == "mock_web_test_token_456"
     # Web push click link in WebpushFCMOptions is official HTTPS URL
     assert msg_web.webpush is not None
     assert msg_web.webpush.fcm_options is not None

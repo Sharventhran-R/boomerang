@@ -1,0 +1,14 @@
+version: 2
+
+# GitGuardian Secret Detection Configuration
+# https://docs.gitguardian.com/ggshield-docs/reference/configuration
+
+secret:
+  # Narrow false-positive suppression for synthetic unit-test fixture tokens.
+  # These are mock strings used strictly for offline testing of FCM payload routing.
+  ignored_matches:
+    - name: "mock-web-userdevice-fcm-token-test-fixture"
+      match: "web_fcm_token_456"
+    - name: "mock-unregistered-web-token-test-fixture"
+      match: "unregistered_web_token"
+
