@@ -37,6 +37,7 @@
 - [x] Phase 9.4 — Firebase configuration verification and FCM push dispatcher.
 - [x] Phase 9.5 — Authenticated notification, device registration, and preference REST APIs.
 - [x] Phase 9.6 — Flutter Notification UI, Notification Centre, Settings & FCM Device Registration.
+- [x] Phase 9.7 — Deep Links & Push Notification Interactions.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1325,6 +1326,45 @@
     - Strictly Phase 9.6 scope.
     - Zero Phase 9.7 deep link routing (tapping notifications only marks as read and updates feed).
     - Strictly zero Git write operations executed.
+
+- 2026-11-11: Completed Phase 9.7 — Deep Links & Push Notification Interactions:
+  - Architecture & Client Deliverables:
+    - Centralized Notification Router (`frontend/lib/services/notification_router.dart`):
+      - Created `NotificationRouter` singleton with context-free global routing capability via `navigatorKey: NotificationRouter.navigatorKey` on `MaterialApp`.
+      - Robust destination resolution supporting:
+        - `MATCH_DETECTED`, `MATCH_HIGH_PRIORITY`, `MATCH_UPDATED` -> `MatchDetailScreen(matchId: matchId)`.
+        - `RECOVERY_REQUEST_RECEIVED`, `RECOVERY_REQUEST_ACCEPTED`, `RECOVERY_REQUEST_REJECTED`, `RECOVERY_REQUEST_COMPLETED` -> `RecoveryRequestsScreen(initialTab: tab, targetRequestId: requestId)`.
+        - `REPORT_STATUS_CHANGED`, `REPORT_EXPIRING` -> `ReportDetailsScreen(reportId: reportId)`.
+        - Application URI schemes (`boomerang://matches/...`, `boomerang://reports/...`, `boomerang://recovery-requests?...`, `boomerang://notifications`).
+        - Web Push HTTPS click destination URLs (`https://.../matches/...`, `https://.../reports/...`, etc.).
+      - High-frequency debouncing and duplicate suppression (prevents double navigation on rapid taps or duplicate OS intents).
+      - Secure authentication gate: unauthenticated interactions store pending intents, which are deferred until successful authentication and wiped immediately on logout or account switch.
+      - Graceful error fallback for missing/expired resources (`AppToast.error` without throwing unhandled exceptions or crashing).
+    - Lifecycle State Integration:
+      - **Cold-Start**: `FCMService.checkInitialMessage()` checks terminated-state launch intents, queues pending route, and navigates after auth and first frame render.
+      - **Background**: `FirebaseMessaging.onMessageOpenedApp` listener routes to target destination while refreshing notifications and unread badges.
+      - **Foreground**: `NotificationItemCard` in `NotificationsScreen` marks notification as read and pushes target destination while fully preserving back-stack navigation.
+    - Destination Screen Enhancements:
+      - `RecoveryRequestsScreen`: Added optional `initialTab` (`'received'` vs `'sent'`) and `targetRequestId` parameters, cleanly switching tabs on push.
+      - `AppRoot` & `AuthService`: Wired post-frame callbacks and auth session lifecycle hooks (`processPendingRoute()`, `clearPendingRoute()`).
+  - Quality Verification:
+    - Dedicated test suite `frontend/test/phase_9_7_deep_link_test.dart`: 19 of 19 tests passed cleanly (URL schemes, domain types, de-duplication, auth gate, cold-start queuing, widget navigation stack, back-stack preservation, in-app card tap, missing identifier handling, target request highlighting, tab selection, and mock FCM service).
+    - Regression tests passing: 45 tests across Phase 9.6 and Phase 9.7 passing cleanly.
+    - Full offline Flutter test suite passing (195 tests passed).
+    - Static analysis: `cd frontend; flutter analyze` passed with 0 issues.
+    - Formatting: `cd frontend; dart format .` verified clean (0 files changed).
+    - Backend verification: `ruff check .` (0 errors), `ruff format --check .` (clean), strict `mypy .` (0 errors in 86 source files), pytest (86 passed in 36.09s).
+  - Scope Boundaries:
+    - Zero new backend dependencies or schema changes (Phase 9.5 contracts were 100% sufficient).
+    - Zero Phase 9.8 end-to-end load tests.
+    - Strictly zero Git write operations executed.
+- 2026-11-11: Completed Phase 9.7 Final Reliability & Verification Audit:
+  - Recovery Request Targeting: Verified `targetRequestId` consumption, automatic tab switching ('received' / 'sent'), visual target card highlighting with `TARGETED` badge, and graceful missing request toast fallback.
+  - Platform Deep-Link Registration: Clarified distinction between in-app URI parsing (`boomerang://` handled inside `NotificationRouter`) and OS deep-link manifest registration. External OS custom scheme intent filters are intentionally not registered in `AndroidManifest.xml` / `Info.plist`; FCM push notifications launch via system tray launcher intents delivering data payloads directly into the app. Web Push uses standard HTTPS URL routing.
+  - Destination Authorization: Confirmed backend APIs (`/api/v1/matches/{id}`, `/api/v1/reports/{id}`, `/api/v1/recovery-requests/{id}`) enforce strict ownership/participant authorization; client router safely displays feedback toast on 401/403/404 without crashing.
+  - Lifecycle Verification: Validated cold-start post-auth delivery, background notification resume, foreground in-app card routing, 1500ms debouncing, and logout/account switch queue flush.
+
+
 
 
 

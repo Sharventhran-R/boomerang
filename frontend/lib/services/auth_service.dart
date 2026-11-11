@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import 'api_client.dart';
 import 'fcm_service.dart';
 import 'notification_repository.dart';
+import 'notification_router.dart';
 import 'recovery_repository.dart';
 import 'report_repository.dart';
 import 'token_storage.dart';
@@ -70,6 +71,7 @@ class AuthService extends ChangeNotifier {
           _isInitialized = true;
           FCMService.instance.requestPermissionAndRegister().ignore();
           NotificationRepository.instance.fetchUnreadCount().ignore();
+          NotificationRouter.instance.processPendingRoute().ignore();
           notifyListeners();
           return;
         } catch (e) {
@@ -89,6 +91,7 @@ class AuthService extends ChangeNotifier {
           await _fetchProfile();
           FCMService.instance.requestPermissionAndRegister().ignore();
           NotificationRepository.instance.fetchUnreadCount().ignore();
+          NotificationRouter.instance.processPendingRoute().ignore();
         }
       }
     } catch (_) {
@@ -138,6 +141,7 @@ class AuthService extends ChangeNotifier {
     FCMService.instance.requestPermissionAndRegister().ignore();
     NotificationRepository.instance.fetchUnreadCount().ignore();
     notifyListeners();
+    NotificationRouter.instance.processPendingRoute().ignore();
     return user;
   }
 
@@ -190,6 +194,7 @@ class AuthService extends ChangeNotifier {
     }
 
     await _clearSession();
+    NotificationRouter.instance.clearPendingRoute();
     ReportRepository.instance.clearUserData();
     RecoveryRepository.instance.clearUserData();
     NotificationRepository.instance.clearUserData();
@@ -211,6 +216,7 @@ class AuthService extends ChangeNotifier {
     _currentUser = null;
     _currentAccessToken = null;
     NotificationRepository.instance.clearUserData();
+    NotificationRouter.instance.clearPendingRoute();
     await tokenStorage.clearTokens();
   }
 
@@ -229,6 +235,17 @@ class AuthService extends ChangeNotifier {
         refreshToken: refreshToken,
       );
     }
+    notifyListeners();
+    NotificationRouter.instance.processPendingRoute().ignore();
+  }
+
+  /// Manually clear session for unit testing
+  void clearSessionForTesting() {
+    _currentUser = null;
+    _currentAccessToken = null;
+    _isInitialized = true;
+    NotificationRepository.instance.clearUserData();
+    NotificationRouter.instance.clearPendingRoute();
     notifyListeners();
   }
 }

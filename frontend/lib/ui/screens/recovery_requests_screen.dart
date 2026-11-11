@@ -4,21 +4,36 @@ import '../../theme.dart';
 import '../widgets/app_toast.dart';
 
 class RecoveryRequestsScreen extends StatefulWidget {
-  const RecoveryRequestsScreen({super.key});
+  final String? initialTab;
+  final String? targetRequestId;
+
+  const RecoveryRequestsScreen({
+    super.key,
+    this.initialTab,
+    this.targetRequestId,
+  });
 
   @override
   State<RecoveryRequestsScreen> createState() => _RecoveryRequestsScreenState();
 }
 
 class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
-  String _selectedTab = 'received';
+  late String _selectedTab;
   final Map<String, String> _requestStatuses = {};
+  bool _hasCheckedTarget = false;
 
   @override
   void initState() {
     super.initState();
+    _selectedTab = (widget.initialTab == 'sent') ? 'sent' : 'received';
     RecoveryRepository.instance.addListener(_onRepoChanged);
     RecoveryRepository.instance.loadRequests();
+
+    if (widget.targetRequestId != null && widget.targetRequestId!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkTargetRequestAvailability();
+      });
+    }
   }
 
   @override
@@ -28,7 +43,48 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
   }
 
   void _onRepoChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      if (widget.targetRequestId != null && !_hasCheckedTarget) {
+        _checkTargetRequestAvailability();
+      }
+    }
+  }
+
+  bool _isRequestTargeted(String requestId) {
+    final target = widget.targetRequestId?.trim();
+    if (target == null || target.isEmpty) return false;
+    final normalizedReqId = requestId.trim().toLowerCase();
+    final normalizedTarget = target.toLowerCase();
+    return normalizedReqId == normalizedTarget ||
+        normalizedReqId.endsWith(normalizedTarget) ||
+        normalizedTarget.endsWith(normalizedReqId);
+  }
+
+  void _checkTargetRequestAvailability() {
+    if (!mounted || widget.targetRequestId == null || _hasCheckedTarget) return;
+    final received = RecoveryRepository.instance.receivedRequests;
+    final sent = RecoveryRepository.instance.sentRequests;
+
+    final inReceived = received.any((r) => _isRequestTargeted(r.id));
+    final inSent = sent.any((r) => _isRequestTargeted(r.id));
+
+    if (inReceived && _selectedTab != 'received') {
+      setState(() => _selectedTab = 'received');
+      _hasCheckedTarget = true;
+    } else if (inSent && _selectedTab != 'sent') {
+      setState(() => _selectedTab = 'sent');
+      _hasCheckedTarget = true;
+    } else if (inReceived || inSent) {
+      _hasCheckedTarget = true;
+    } else if (!RecoveryRepository.instance.isLoading) {
+      _hasCheckedTarget = true;
+      AppToast.info(
+        context,
+        message:
+            'The requested recovery handover is no longer active or accessible.',
+      );
+    }
   }
 
   void _handleAccept(String id, String senderName, String contact) {
@@ -447,6 +503,7 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
                           receivedList[i].requesterEmail ??
                           '+380 67 482 8921 (Direct counter)',
                       currentStatus: receivedList[i].status,
+                      isTargeted: _isRequestTargeted(receivedList[i].id),
                     ),
                   ],
               ] else ...[
@@ -486,6 +543,7 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
                           'desk4@railway.transit.kiev.ua',
                       isOutgoing: true,
                       currentStatus: sentList[i].status,
+                      isTargeted: _isRequestTargeted(sentList[i].id),
                     ),
                   ],
               ],
@@ -510,6 +568,7 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
     required String contact,
     bool isOutgoing = false,
     String? currentStatus,
+    bool isTargeted = false,
   }) {
     final status = _requestStatuses[id] ?? currentStatus ?? 'pending';
     final isMissing = type == 'MISSING';
@@ -517,12 +576,15 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.card,
+        color: isTargeted ? AppTheme.elevatedSurface : AppTheme.card,
         borderRadius: BorderRadius.circular(AppTheme.defaultRadius),
         border: Border.all(
-          color: status == 'accepted'
-              ? AppTheme.borderHighlight
-              : AppTheme.borderSubtle,
+          color: isTargeted
+              ? AppTheme.actionPrimary
+              : (status == 'accepted'
+                    ? AppTheme.borderHighlight
+                    : AppTheme.borderSubtle),
+          width: isTargeted ? 1.8 : 1.0,
         ),
       ),
       child: Column(
@@ -571,6 +633,30 @@ class _RecoveryRequestsScreenState extends State<RecoveryRequestsScreen> {
                       letterSpacing: 0.5,
                     ),
                   ),
+                  if (isTargeted) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.actionPrimary,
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.smallRadius,
+                        ),
+                      ),
+                      child: const Text(
+                        'TARGETED',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.onActionPrimary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               Container(

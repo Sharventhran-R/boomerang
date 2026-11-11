@@ -629,21 +629,32 @@ frontend/lib/
    - In foreground state, FCM push messages do not automatically display system heads-up notifications.
    - `NotificationService.onMessage` parses the incoming payload and displays an in-app `AppToast` notification banner without interrupting user interaction.
    - Simultaneously increments `NotificationRepository.unreadCount`.
-3. **Background & Terminated State Interaction**:
-   - User taps push notification banner in system notification tray.
-   - Handled via `FirebaseMessaging.onMessageOpenedApp` (background) or `FirebaseMessaging.instance.getInitialMessage()` (cold start).
-   - Extracts payload `data`:
+3. **Background & Terminated State Interaction (Phase 9.7 Implemented)**:
+   - User taps push notification banner in system notification tray or Web Push notification.
+   - Handled via `FirebaseMessaging.onMessageOpenedApp` (background) or `FirebaseMessaging.instance.getInitialMessage()` (cold start) through `NotificationRouter`.
+   - Supports payload parsing from `data` (`match_id`, `recovery_request_id`, `report_id`, `deep_link`, `type`, `priority`):
      ```json
      {
-       "entity_type": "match",
-       "entity_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+       "notification_id": "b3e3902f-2d7c-473d-88f5-b6d859ebcc3a",
+       "type": "MATCH_HIGH_PRIORITY",
+       "match_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+       "priority": "HIGH",
        "deep_link": "boomerang://matches/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
      }
      ```
-   - Routes to authenticated destination screen:
-     - `entity_type == "match"` $\rightarrow$ `MatchDetailScreen(matchId: entity_id)`
-     - `entity_type == "recovery_request"` $\rightarrow$ `RecoveryRequestsScreen()`
-     - `entity_type == "report"` $\rightarrow$ `ReportDetailsScreen(reportId: entity_id)`
+   - Centralized routing through `NotificationRouter` (`frontend/lib/services/notification_router.dart`):
+     - `MATCH_DETECTED`, `MATCH_HIGH_PRIORITY`, `MATCH_UPDATED` or `boomerang://matches/{id}` $\rightarrow$ `MatchDetailScreen(matchId: match_id)`
+     - `RECOVERY_REQUEST_RECEIVED`, `RECOVERY_REQUEST_ACCEPTED`, `RECOVERY_REQUEST_REJECTED`, `RECOVERY_REQUEST_COMPLETED` or `boomerang://recovery-requests?tab={tab}&id={id}` $\rightarrow$ `RecoveryRequestsScreen(initialTab: tab, targetRequestId: id)`
+     - `REPORT_STATUS_CHANGED`, `REPORT_EXPIRING` or `boomerang://reports/{id}` $\rightarrow$ `ReportDetailsScreen(reportId: report_id)`
+     - Web Push HTTPS URLs (`https://.../matches/...`, `https://.../reports/...`, `https://.../recovery-requests?...`) $\rightarrow$ mapped identically.
+   - Authentication Gate & Cold-Start Lifecycle:
+     - If user is not yet authenticated, destination intent is safely queued in `pendingIntent`.
+     - Upon login or successful session restoration, pending navigation is automatically processed after frame render.
+     - On explicit logout or account switch, `clearPendingRoute()` discards any queued intents.
+   - High-Frequency Debounce:
+     - Duplicate interactions within 1500ms are suppressed.
+   - Invalid Resource Resilience:
+     - Missing or deleted IDs display `AppToast.error` without throwing unhandled exceptions.
 
 ---
 
@@ -710,7 +721,7 @@ When the async push worker calls the FCM HTTP/v1 API:
 | **Phase 9.4** | **Async Push Dispatcher & FCM Service** | Async push worker pool, FCM HTTP/v1 client with mock service for CI, token invalidation handler, exponential backoff retries. | FCM mock delivery tests, invalid token retirement tests, retry backoff tests. |
 | **Phase 9.5** | **FastAPI Notification Endpoints** | REST routes for listing, unread counts, mark-as-read, device registration, and preference management. | Pytest API integration tests covering 200, 401, 403, 404, 422, pagination, and bulk actions. |
 | **Phase 9.6** | **Flutter Notification Client & UI** | `NotificationModel`, `NotificationRepository`, `NotificationService`, `NotificationsScreen`, unread badge icon, and settings UI. | Flutter unit and widget tests for models, repository, notification center, and settings screen. |
-| **Phase 9.7** | **Deep Linking & Push Routing** | System push notification click handling, deep link routing to `MatchDetailScreen`, `ReportDetailsScreen`, `RecoveryRequestsScreen`, foreground toast. | Flutter widget and integration tests simulating push taps and verifying destination routes. |
+| **Phase 9.7** | **Deep Linking & Push Routing (Completed)** | Centralized `NotificationRouter`, all 9 domain types, deep links (`boomerang://` & Web Push HTTPS), cold-start & background routing, auth gate, and deduplication. | 17 Flutter unit and widget tests covering routing, auth restoration, de-duplication, back stack, and error resilience. |
 | **Phase 9.8** | **End-to-End Verification & Production Hardening** | Full end-to-end integration test from report creation $\rightarrow$ match detection $\rightarrow$ notification ingestion $\rightarrow$ push dispatch $\rightarrow$ in-app verification. Multi-device verification. | End-to-end backend integration tests, full Flutter suite, and automated anti-spam load benchmark. |
 
 ---

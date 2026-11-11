@@ -9,6 +9,7 @@ import '../models/notification_model.dart';
 import 'auth_service.dart';
 import 'firebase_options.dart';
 import 'notification_repository.dart';
+import 'notification_router.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -266,11 +267,38 @@ class FCMService {
     }
   }
 
+  /// Checks whether the app was launched by tapping a push notification from terminated state.
+  Future<RemoteMessage?> checkInitialMessage() async {
+    if (_mockMode) return null;
+    if (!_isInitialized || _messaging == null) {
+      await initialize();
+    }
+    if (_messaging == null) return null;
+
+    try {
+      final initialMessage = await _messaging!.getInitialMessage();
+      if (initialMessage != null) {
+        _handleNotificationOpenedApp(initialMessage);
+        return initialMessage;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('FCMService: Error checking initial message: $e');
+      }
+    }
+    return null;
+  }
+
   void _handleNotificationOpenedApp(RemoteMessage message) {
-    // Refresh notifications feed on banner tap (Phase 9.6 scope)
+    // Refresh notifications feed and unread count
     repository.fetchNotifications(refresh: true);
     repository.fetchUnreadCount();
+    // Route to appropriate destination via NotificationRouter (Phase 9.7)
+    NotificationRouter.instance.handleMessage(message);
   }
+
+  void handleMessageOpenedAppForTesting(RemoteMessage message) =>
+      _handleNotificationOpenedApp(message);
 
   DevicePlatform _resolvePlatform() {
     if (kIsWeb) return DevicePlatform.web;

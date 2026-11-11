@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_repository.dart';
+import '../../services/notification_router.dart';
 import '../../theme.dart';
 
 /// Card widget rendering a single notification item in the notification centre.
 class NotificationItemCard extends StatelessWidget {
   final NotificationItemModel item;
   final VoidCallback? onMarkRead;
+  final VoidCallback? onTap;
 
-  const NotificationItemCard({super.key, required this.item, this.onMarkRead});
+  const NotificationItemCard({
+    super.key,
+    required this.item,
+    this.onMarkRead,
+    this.onTap,
+  });
 
   String _formatTimestamp(DateTime dt) {
     final now = DateTime.now();
@@ -72,6 +79,14 @@ class NotificationItemCard extends StatelessWidget {
               } else {
                 NotificationRepository.instance.markAsRead(item.id);
               }
+            }
+            if (onTap != null) {
+              onTap!();
+            } else {
+              NotificationRouter.instance.handleNotification(
+                item,
+                context: context,
+              );
             }
           },
           borderRadius: BorderRadius.circular(AppTheme.defaultRadius),

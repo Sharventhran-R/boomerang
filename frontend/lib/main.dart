@@ -3,6 +3,7 @@ import 'services/auth_service.dart';
 import 'services/fcm_service.dart';
 import 'services/match_repository.dart';
 import 'services/notification_repository.dart';
+import 'services/notification_router.dart';
 import 'services/recovery_repository.dart';
 import 'services/report_repository.dart';
 import 'theme.dart';
@@ -17,17 +18,20 @@ void main() async {
   MatchRepository.instance.configure();
   NotificationRepository.instance.configure();
   await FCMService.instance.initialize();
+  await FCMService.instance.checkInitialMessage();
   runApp(const BoomerangApp());
 }
 
 class BoomerangApp extends StatelessWidget {
   final Widget? home;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
-  const BoomerangApp({super.key, this.home});
+  const BoomerangApp({super.key, this.home, this.navigatorKey});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey ?? NotificationRouter.navigatorKey,
       title: 'Boomerang',
       theme: AppTheme.darkTheme,
       home: home ?? const AppRoot(),
@@ -36,8 +40,23 @@ class BoomerangApp extends StatelessWidget {
   }
 }
 
-class AppRoot extends StatelessWidget {
+class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
+
+  @override
+  State<AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<AppRoot> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (AuthService.instance.isAuthenticated) {
+        NotificationRouter.instance.processPendingRoute();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +72,9 @@ class AppRoot extends StatelessWidget {
           }
           return const LoginScreen();
         }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationRouter.instance.processPendingRoute();
+        });
         return const MainNavScreen();
       },
     );
