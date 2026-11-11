@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_repository.dart';
 import '../../services/report_repository.dart';
 import '../../theme.dart';
 import 'choose_report_type_screen.dart';
 import 'home_screen.dart';
 import 'map_screen.dart';
 import 'my_reports_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'recovery_requests_screen.dart';
 import 'settings_screen.dart';
@@ -158,6 +160,47 @@ class _MainNavScreenState extends State<MainNavScreen> {
                             _buildSidebarItem(1, Icons.map, 'Map'),
                             _buildSidebarItem(2, Icons.add_box, 'Create'),
                             _buildSidebarItem(3, Icons.inventory_2, 'Reports'),
+                            _buildSidebarActionItem(
+                              icon: Icons.notifications_outlined,
+                              label: 'Notifications',
+                              trailing: ListenableBuilder(
+                                listenable: NotificationRepository.instance,
+                                builder: (context, _) {
+                                  final unread = NotificationRepository
+                                      .instance
+                                      .unreadCount;
+                                  if (unread == 0) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.actionPrimary,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      unread > 99 ? '99+' : unread.toString(),
+                                      style: const TextStyle(
+                                        color: AppTheme.onActionPrimary,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const NotificationsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
                             _buildSidebarActionItem(
                               icon: Icons.swap_horiz,
                               label: 'Recovery Requests',
@@ -407,6 +450,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -436,6 +480,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
                     ),
                   ),
                 ),
+                ?trailing,
               ],
             ),
           ),

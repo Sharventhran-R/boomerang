@@ -36,6 +36,7 @@
 - [x] Phase 9.3 — Kafka event contracts and notification consumer.
 - [x] Phase 9.4 — Firebase configuration verification and FCM push dispatcher.
 - [x] Phase 9.5 — Authenticated notification, device registration, and preference REST APIs.
+- [x] Phase 9.6 — Flutter Notification UI, Notification Centre, Settings & FCM Device Registration.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1292,6 +1293,37 @@
     - Zero Flutter notification UI (Phase 9.6).
     - Zero web service worker (Phase 9.6).
     - Zero deep-link routing (Phase 9.7).
+    - Strictly zero Git write operations executed.
+
+- 2026-11-11: Completed Phase 9.6 — Flutter Notification UI & Device Registration:
+  - Architecture & Client Deliverables:
+    - Firebase Cloud Messaging Client:
+      - Configured Gradle Kotlin DSL (`settings.gradle.kts` and `app/build.gradle.kts`) with Google Services plugin (4.4.2).
+      - Added `firebase_core: ^5.1.0` and `firebase_messaging: ^17.0.1`.
+      - Generated `frontend/lib/services/firebase_options.dart` containing non-secret project configurations for Android (`com.example.frontend`), Web, and iOS.
+      - Created Web Push service worker `frontend/web/firebase-messaging-sw.js` for handling background messages without exposing backend secrets.
+      - Implemented `FCMService` in `frontend/lib/services/fcm_service.dart`: resilient initialization, permission requests, persistent UUID generation via `flutter_secure_storage`, device registration with Phase 9.5 backend API, automatic token rotation listener, foreground and background handlers, and graceful logout deactivation.
+    - Data Layer & Repositories:
+      - Implemented strongly typed models in `frontend/lib/models/notification_model.dart`: `NotificationItemModel`, `NotificationListResponse`, `UnreadCountModel`, `DevicePlatform`, `RegisterDeviceRequest`, `DeviceResponseModel`, `NotificationPreferenceModel`, `UpdateNotificationPreferenceRequest`.
+      - Implemented `NotificationRepository` in `frontend/lib/services/notification_repository.dart` (`ChangeNotifier`): paginated in-app feed, unread counter, optimistic mark-as-read, mark-all-as-read, preference cache and updates, device registration/deactivation, and `clearUserData()` for cache isolation across user sessions.
+    - User Interface Components:
+      - Implemented `NotificationBadgeIcon` in `frontend/lib/ui/widgets/notification_badge_icon.dart`: monochromatic dark bell icon, live badge counter with `99+` ceiling, and navigation to Notification Centre.
+      - Implemented `NotificationItemCard` in `frontend/lib/ui/widgets/notification_item_card.dart`: read/unread visual differentiation, high-priority visual indicator, domain type icons (match, recovery, report), relative timestamping, and tap-to-mark-read action.
+      - Implemented `NotificationsScreen` in `frontend/lib/ui/screens/notifications_screen.dart`: dedicated notification centre, newest-first ordering, "All" vs "Unread" filter chips, pull-to-refresh (`RefreshIndicator`), infinite scroll pagination, "Mark all read" header action, and empty/loading/error states.
+      - Implemented `NotificationSettingsScreen` in `frontend/lib/ui/screens/notification_settings_screen.dart`: delivery channel switches (push, in-app), event toggles (matches, recovery, reports), minimum match score slider (0% to 100%), high priority toggle, quiet hours switch with start/end time pickers (`showTimePicker`), and "Save Preferences" action.
+    - App Navigation & Session Integration:
+      - `HomeScreen`: Integrated `NotificationBadgeIcon` in top header bar next to location picker.
+      - `MainNavScreen`: Integrated `Notifications` with live unread badge in desktop navigation sidebar.
+      - `ProfileScreen`: Integrated `Notifications` and `Notification Preferences` rows in the Preferences section.
+      - `AuthService`: Linked FCM registration on login/session restoration, and automatic device deactivation and user cache clearance (`NotificationRepository.instance.clearUserData()`) on logout.
+      - `main.dart`: Initialized `NotificationRepository` and `FCMService` on application startup.
+  - Quality Verification:
+    - New test suite in `frontend/test/phase_9_6_notification_test.dart`: 21 of 21 tests passed cleanly across models, repository, state management, cache clearing, FCM service mock mode, and widget/screen interactions.
+    - Full Flutter regression suite passing: `flutter test test/phase_8_6_match_test.dart test/phase_6_4_test.dart test/my_reports_regression_test.dart test/stabilization_test.dart` (29 of 29 passed).
+    - Code quality: `cd frontend; flutter analyze` passed with 0 issues.
+  - Scope Boundaries:
+    - Strictly Phase 9.6 scope.
+    - Zero Phase 9.7 deep link routing (tapping notifications only marks as read and updates feed).
     - Strictly zero Git write operations executed.
 
 

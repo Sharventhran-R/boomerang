@@ -284,6 +284,7 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 - Phase 9.3 complete (Kafka Event Ingestion Consumer in `app/services/notification_consumer.py`)
 - Phase 9.4 complete (Firebase FCM Configuration & Push Dispatcher in `app/services/fcm.py` and `app/services/push_dispatcher.py`)
 - Phase 9.5 complete (Notification REST APIs & Device Management in `app/api/notifications.py`, `app/api/devices.py`, and `app/schemas/notification.py`)
+- Phase 9.6 complete (Flutter Notification UI, Notification Centre, Settings & FCM Device Registration in `frontend/lib/` and `frontend/test/`)
 - Infrastructure operational: PostgreSQL 16 + PostGIS 3.4, Apache Kafka 3.8, MinIO object storage
 - Backend test suite reported clean (233 passed)
 - Quality gates reported clean: Ruff linter & format, strict mypy, Alembic schema check, Flutter analyze

@@ -4,6 +4,7 @@ import '../../services/location_service.dart';
 import '../../services/report_repository.dart';
 import '../../theme.dart';
 import '../widgets/location_selection_sheet.dart';
+import '../widgets/notification_badge_icon.dart';
 import '../widgets/report_card.dart';
 import 'choose_report_type_screen.dart';
 import 'report_details_screen.dart';
@@ -425,6 +426,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    const NotificationBadgeIcon(),
                   ],
                 ),
                 const SizedBox(height: 14),

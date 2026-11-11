@@ -604,18 +604,18 @@ class UpdateNotificationPreferenceRequest(BaseModel):
 ```text
 frontend/lib/
 ├── models/
-│   ├── notification_model.dart            # In-App notification DTOs & unread counts
-│   └── notification_preference_model.dart # Settings & quiet hours DTO
+│   └── notification_model.dart            # In-App notification DTOs, device registrations, preferences & unread counts
 ├── services/
-│   ├── notification_service.dart          # FCM token listener, background isolate, push handler
-│   └── notification_repository.dart       # Observable in-app feed, unread badge counter, pagination
+│   ├── fcm_service.dart                   # FCM token listener, background message handler, permissions & lifecycle
+│   ├── firebase_options.dart              # Multiplatform Firebase options configuration
+│   └── notification_repository.dart       # Observable in-app feed, unread badge counter, pagination & cache
 └── ui/
     ├── screens/
-    │   ├── notifications_screen.dart      # In-App notification center with pull-to-refresh & swipe dismiss
-    │   └── notification_settings_screen.dart # User preference toggles & quiet hours picker
+    │   ├── notifications_screen.dart      # In-App notification center with pull-to-refresh & infinite scroll
+    │   └── notification_settings_screen.dart # User preference toggles, slider & quiet hours picker
     └── widgets/
-        ├── notification_badge_icon.dart   # App bar bell icon with live unread badge counter
-        └── notification_item_card.dart    # Monochrome item card with category icons and action routes
+        ├── notification_badge_icon.dart   # App bar & navigation bell icon with live unread badge counter
+        └── notification_item_card.dart    # Monochrome item card with category icons, priority indicator & mark-as-read
 ```
 
 ### 8.2 Client Push & Deep Link Flow

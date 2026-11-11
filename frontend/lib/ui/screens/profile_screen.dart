@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_repository.dart';
 import '../../services/recovery_repository.dart';
 import '../../services/report_repository.dart';
 import '../../theme.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/status_label.dart';
 import 'my_reports_screen.dart';
+import 'notification_settings_screen.dart';
+import 'notifications_screen.dart';
 import 'recovery_requests_screen.dart';
 import 'session_expired_screen.dart';
 import 'settings_screen.dart';
@@ -527,7 +530,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         _buildSettingsRow(
+                          icon: Icons.notifications_outlined,
+                          title: 'Notifications',
+                          subtitle: 'View recent incident and match alerts',
+                          trailing: ListenableBuilder(
+                            listenable: NotificationRepository.instance,
+                            builder: (context, _) {
+                              final unread =
+                                  NotificationRepository.instance.unreadCount;
+                              if (unread == 0) {
+                                return const SizedBox.shrink();
+                              }
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.actionPrimary,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  unread > 99 ? '99+' : unread.toString(),
+                                  style: const TextStyle(
+                                    color: AppTheme.onActionPrimary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const Divider(color: AppTheme.borderSubtle, height: 1),
+                        _buildSettingsRow(
                           icon: Icons.tune,
+                          title: 'Notification Preferences',
+                          subtitle:
+                              'Quiet hours, match score thresholds & channels',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const NotificationSettingsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const Divider(color: AppTheme.borderSubtle, height: 1),
+                        _buildSettingsRow(
+                          icon: Icons.settings_outlined,
                           title: 'Preferences & Settings',
                           subtitle: 'Configure alerts and notifications',
                           onTap: () {
@@ -604,6 +665,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return InkWell(
       onTap: onTap,
@@ -645,6 +707,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+            if (trailing != null) ...[trailing, const SizedBox(width: 8)],
             const Icon(
               Icons.chevron_right,
               size: 18,

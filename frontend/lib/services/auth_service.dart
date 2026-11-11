@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../models/auth_tokens.dart';
 import '../models/user_model.dart';
 import 'api_client.dart';
+import 'fcm_service.dart';
+import 'notification_repository.dart';
 import 'recovery_repository.dart';
 import 'report_repository.dart';
 import 'token_storage.dart';
@@ -66,6 +68,8 @@ class AuthService extends ChangeNotifier {
         try {
           await _fetchProfile();
           _isInitialized = true;
+          FCMService.instance.requestPermissionAndRegister().ignore();
+          NotificationRepository.instance.fetchUnreadCount().ignore();
           notifyListeners();
           return;
         } catch (e) {
@@ -83,6 +87,8 @@ class AuthService extends ChangeNotifier {
         final refreshed = await refreshToken();
         if (refreshed) {
           await _fetchProfile();
+          FCMService.instance.requestPermissionAndRegister().ignore();
+          NotificationRepository.instance.fetchUnreadCount().ignore();
         }
       }
     } catch (_) {
@@ -129,6 +135,8 @@ class AuthService extends ChangeNotifier {
     );
 
     final user = await _fetchProfile();
+    FCMService.instance.requestPermissionAndRegister().ignore();
+    NotificationRepository.instance.fetchUnreadCount().ignore();
     notifyListeners();
     return user;
   }
@@ -162,6 +170,12 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await FCMService.instance.deactivateCurrentDevice();
+    } catch (_) {
+      // Tolerate failure during logout deactivation
+    }
+
     final storedRefreshToken = await tokenStorage.getRefreshToken();
     if (storedRefreshToken != null && storedRefreshToken.isNotEmpty) {
       try {
@@ -178,6 +192,7 @@ class AuthService extends ChangeNotifier {
     await _clearSession();
     ReportRepository.instance.clearUserData();
     RecoveryRepository.instance.clearUserData();
+    NotificationRepository.instance.clearUserData();
     notifyListeners();
   }
 
@@ -195,6 +210,7 @@ class AuthService extends ChangeNotifier {
   Future<void> _clearSession() async {
     _currentUser = null;
     _currentAccessToken = null;
+    NotificationRepository.instance.clearUserData();
     await tokenStorage.clearTokens();
   }
 
