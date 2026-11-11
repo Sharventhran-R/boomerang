@@ -35,6 +35,7 @@
 - [x] Phase 9.2 — Notification database models, migrations, and repository.
 - [x] Phase 9.3 — Kafka event contracts and notification consumer.
 - [x] Phase 9.4 — Firebase configuration verification and FCM push dispatcher.
+- [x] Phase 9.5 — Authenticated notification, device registration, and preference REST APIs.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1266,6 +1267,33 @@
     - Full pytest suite: 302 of 302 tests passed.
     - Static analysis: `ruff check`, `ruff format --check`, and strict `mypy .` clean (0 errors).
     - Git safety: zero Git write operations executed.
+
+- 2026-11-11: Completed Phase 9.5 — Notification REST APIs & Device Management:
+  - Architecture & Endpoint Implementation:
+    - Implemented authenticated notification REST APIs in `app/api/notifications.py` and device APIs in `app/api/devices.py`.
+    - `GET /api/v1/notifications`: Paginated in-app notifications listing with validation bounds (`page >= 1`, `1 <= page_size <= 100`), deterministic newest-first ordering (`desc(created_at), desc(id)`), filtering by `is_read` and domain `NotificationType`, unread count metadata, and exclusion of expired notifications.
+    - `GET /api/v1/notifications/unread-count`: High-performance database aggregate count of non-expired, unread notifications without in-memory entity instantiation.
+    - `PATCH /api/v1/notifications/{notification_id}/read`: Idempotent read-status marking with strict ownership authorization returning 404 on unowned/nonexistent records to prevent IDOR existence leakage.
+    - `PATCH /api/v1/notifications/read-all`: Bulk read marking strictly scoped to authenticated user with specification alias `POST /api/v1/notifications/mark-all-read`.
+    - `POST /api/v1/devices/register`: Multi-platform FCM device registration (ANDROID, IOS, WEB) with idempotent upsert, token rotation, and multi-user device handoff protection (deactivating stale records on other users sharing the token). Fully redacted raw FCM tokens from response model `DeviceResponse`. Specification alias `POST /api/v1/notifications/devices`.
+    - `DELETE /api/v1/devices/{device_id}`: Device deactivation on logout returning 204 No Content, preserving delivery records in `notification_deliveries`, with ownership enforcement and specification alias `DELETE /api/v1/notifications/devices/{device_id}`.
+    - `GET /api/v1/notifications/preferences`: Retrieval of user notification preferences, automatically initializing default settings on first access.
+    - `PATCH /api/v1/notifications/preferences`: Partial updates preserving omitted fields, validating score threshold bounds (`0.0 <= match_min_score <= 100.0`), quiet-hours time objects, with specification alias `PUT /api/v1/notifications/preferences`.
+  - Security & Defensive Protections:
+    - Derives authenticated identity exclusively from JWT bearer token principal (`get_current_user`). Request payloads cannot supply or spoof user IDs.
+    - IDOR protection: 404 returned for unowned resources, preventing existence enumeration.
+    - Data sanitization: Field validator on `NotificationResponse.data` dynamically strips sensitive keys (`fcm_token`, `token`, `latitude`, `longitude`, `coordinates`, `verification_secret`, `secret`, `password`, `pin`).
+    - Raw FCM tokens never logged or exposed in `DeviceResponse`.
+  - Quality Verification:
+    - New test suite: `tests/test_notification_api.py` with 17 tests covering pagination, ordering, unread count, single read, bulk read, cross-user isolation, device registration, token rotation, multi-user handoff, validation, deactivation, delivery history preservation, preference defaults/updates/bounds, unauthenticated 401s, invalid UUIDs, and data sanitization.
+    - Static analysis: strict `mypy .` clean (0 errors in 86 source files), `ruff check .` clean (0 errors), `ruff format --check .` clean (93 files checked).
+    - Database schema: `alembic check` clean (0 unmanaged drift).
+  - Scope Boundaries:
+    - Zero Flutter notification UI (Phase 9.6).
+    - Zero web service worker (Phase 9.6).
+    - Zero deep-link routing (Phase 9.7).
+    - Strictly zero Git write operations executed.
+
 
 
 

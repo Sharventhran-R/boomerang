@@ -280,6 +280,10 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 - Phase 8.5 complete (Persistent Match Records & Lifecycle Management in `app/services/matching/persistence.py`)
 - Phase 8.6 complete (Matching API and Flutter Integration in `app/api/matches.py`, `app/schemas/match.py`, and `frontend/lib/`)
 - Phase 9.1 complete (Notification System Architecture & Specification in `docs/notification_system_specification.md`)
+- Phase 9.2 complete (Notification Database Models, Alembic Migrations & Repository in `app/db/models.py` and `app/services/notification.py`)
+- Phase 9.3 complete (Kafka Event Ingestion Consumer in `app/services/notification_consumer.py`)
+- Phase 9.4 complete (Firebase FCM Configuration & Push Dispatcher in `app/services/fcm.py` and `app/services/push_dispatcher.py`)
+- Phase 9.5 complete (Notification REST APIs & Device Management in `app/api/notifications.py`, `app/api/devices.py`, and `app/schemas/notification.py`)
 - Infrastructure operational: PostgreSQL 16 + PostGIS 3.4, Apache Kafka 3.8, MinIO object storage
 - Backend test suite reported clean (233 passed)
 - Quality gates reported clean: Ruff linter & format, strict mypy, Alembic schema check, Flutter analyze

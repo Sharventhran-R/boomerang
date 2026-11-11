@@ -527,23 +527,22 @@ class NotificationDelivery(Base):
 
 ---
 
-## 7. REST API Proposal
+## 7. REST API Specification (Phase 9.5 Implemented)
 
-Endpoints mounted under `${settings.API_V1_STR}/notifications`:
+Endpoints mounted under `${settings.API_V1_STR}/notifications` and `${settings.API_V1_STR}/devices`:
 
 ### 7.1 Endpoint Catalog
 
 | Method | Path | Summary | Auth Required | Request Payload | Response Model |
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | `GET` | `/notifications` | List user in-app notifications (paginated) | Yes | Query: `is_read`, `type`, `page`, `page_size` | `NotificationListResponse` |
-| `GET` | `/notifications/unread-count` | Fast unread badge count | Yes | None | `UnreadCountResponse` |
-| `PATCH` | `/notifications/{id}/read` | Mark single notification as read | Yes | None | `NotificationResponse` |
-| `POST` | `/notifications/mark-all-read` | Mark all unread notifications as read | Yes | None | `BulkActionResponse` |
-| `DELETE` | `/notifications/{id}` | Dismiss/delete single notification | Yes | None | Status 204 No Content |
-| `GET` | `/notifications/preferences` | Retrieve notification settings | Yes | None | `NotificationPreferenceResponse` |
-| `PUT` | `/notifications/preferences` | Update notification settings | Yes | `UpdateNotificationPreferenceRequest` | `NotificationPreferenceResponse` |
-| `POST` | `/notifications/devices` | Register or refresh FCM device token | Yes | `RegisterDeviceRequest` | `DeviceResponse` |
-| `DELETE` | `/notifications/devices/{device_id}` | Deactivate device token on logout | Yes | None | Status 204 No Content |
+| `GET` | `/notifications/unread-count` | Fast database unread badge count | Yes | None | `UnreadCountResponse` |
+| `PATCH` | `/notifications/{notification_id}/read` | Mark single notification as read | Yes | None | `NotificationResponse` |
+| `PATCH` | `/notifications/read-all` | Mark all unread notifications as read (alias: `POST /mark-all-read`) | Yes | None | `BulkActionResponse` |
+| `GET` | `/notifications/preferences` | Retrieve notification settings (creates defaults) | Yes | None | `NotificationPreferenceResponse` |
+| `PATCH` | `/notifications/preferences` | Update notification settings (alias: `PUT /preferences`) | Yes | `NotificationPreferenceUpdateRequest` | `NotificationPreferenceResponse` |
+| `POST` | `/devices/register` | Register or refresh FCM token (alias: `POST /notifications/devices`) | Yes | `DeviceRegisterRequest` | `DeviceResponse` |
+| `DELETE` | `/devices/{device_id}` | Deactivate device on logout (alias: `DELETE /notifications/devices/{device_id}`) | Yes | None | Status 204 No Content |
 
 ### 7.2 Core Pydantic Schemas
 
