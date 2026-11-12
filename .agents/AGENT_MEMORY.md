@@ -38,6 +38,7 @@
 - [x] Phase 9.5 — Authenticated notification, device registration, and preference REST APIs.
 - [x] Phase 9.6 — Flutter Notification UI, Notification Centre, Settings & FCM Device Registration.
 - [x] Phase 9.7 — Deep Links & Push Notification Interactions.
+- [x] Phase 9.8 — End-to-End Verification, Cross-Layer Traceability, Security & Hardening.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1358,11 +1359,48 @@
     - Zero new backend dependencies or schema changes (Phase 9.5 contracts were 100% sufficient).
     - Zero Phase 9.8 end-to-end load tests.
     - Strictly zero Git write operations executed.
-- 2026-11-11: Completed Phase 9.7 Final Reliability & Verification Audit:
-  - Recovery Request Targeting: Verified `targetRequestId` consumption, automatic tab switching ('received' / 'sent'), visual target card highlighting with `TARGETED` badge, and graceful missing request toast fallback.
-  - Platform Deep-Link Registration: Clarified distinction between in-app URI parsing (`boomerang://` handled inside `NotificationRouter`) and OS deep-link manifest registration. External OS custom scheme intent filters are intentionally not registered in `AndroidManifest.xml` / `Info.plist`; FCM push notifications launch via system tray launcher intents delivering data payloads directly into the app. Web Push uses standard HTTPS URL routing.
-  - Destination Authorization: Confirmed backend APIs (`/api/v1/matches/{id}`, `/api/v1/reports/{id}`, `/api/v1/recovery-requests/{id}`) enforce strict ownership/participant authorization; client router safely displays feedback toast on 401/403/404 without crashing.
-  - Lifecycle Verification: Validated cold-start post-auth delivery, background notification resume, foreground in-app card routing, 1500ms debouncing, and logout/account switch queue flush.
+- 2026-11-12: Completed Phase 9.8 — End-to-End Verification & Hardening:
+  - Verification & Hardening Deliverables:
+    - Comprehensive Verification Plan & Test Matrix:
+      - Documented 10-stage lifecycle traceability from Domain Event -> Outbox -> Kafka -> Consumer -> PostgreSQL -> Dispatcher -> FCM -> Flutter -> Authorized Destination.
+      - Generated full lifecycle matrix across all 6 domain events and all 9 notification types.
+    - End-to-End Integration Suite (`tests/test_notification_e2e.py`):
+      - 9 dedicated integration tests covering 100% of subsystem requirements:
+        1. `test_e2e_ten_stage_cross_layer_traceability`: End-to-end multi-layer traceability asserting consistent IDs across all 10 stages.
+        2. `test_e2e_outbox_transactional_atomicity_and_rollback`: Outbox rollback safety ensuring uncommitted domain events are never published.
+        3. `test_e2e_all_six_domain_event_types_mapping`: Maps and verifies outbox-to-notification behaviors across all 6 domain event types (`report.created`, `report.updated`, `report.resolved`, `recovery_request.created`, `recovery_request.updated`, `match.alert_ready`).
+        4. `test_e2e_match_alert_score_tiers_and_cooldown`: Enforces score tiers (>=80 both owners, 75-79 source owner only, <75 suppressed), delta thresholds (delta < 5.0 micro-fluctuations suppressed), and 4-hour cooldown suppression on match updates.
+        5. `test_e2e_concurrent_deduplication_and_worker_leases`: Idempotent deduplication under concurrent insertions and non-overlapping `SKIP LOCKED` worker lease isolation.
+        6. `test_e2e_push_dispatcher_abandoned_lease_recovery`: Reclaiming stranded delivery tasks with expired worker leases (e.g., worker crash simulation).
+        7. `test_e2e_push_dispatcher_terminal_state_protection`: Terminal state immutability ensuring `SENT` and `PERMANENTLY_FAILED` deliveries are never re-claimed or retried.
+        8. `test_e2e_payload_privacy_and_security_audit`: Exhaustive audit asserting zero GPS coordinates (`lat`, `lon`), secret tokens, passwords, or raw FCM tokens appear in notification data or FCM data payloads across all 9 notification types.
+        9. `test_e2e_live_kafka_roundtrip_integration`: Live roundtrip test asserting actual KRaft Kafka broker publish, consumer consumption, offset commit, and PostgreSQL delivery materialization.
+    - Flutter Client Hardening Suite (`frontend/test/phase_9_8_e2e_test.dart`):
+      - 17 automated tests verifying:
+        - Cross-layer FCM payload ingestion (`fromRemoteMessage`, `fromData`) and deep link destination resolution.
+        - Robust error handling on 401 Unauthorized (session preservation and deferred routing on login), 403 Forbidden, and 404 Not Found (graceful error toasts without uncaught exceptions or UI crashes).
+        - Client-side payload privacy audit across all 9 notification types.
+        - High-frequency rapid interaction debouncing (1500ms window).
+        - Notification Center, unread count, and preference state updates.
+    - Systematic Audit of 7 Follow-Up Items:
+      1. Timezone-aware quiet hours: Documented current UTC naive evaluation and clear follow-up path for client-side UTC translation or DB timezone storage.
+      2. Scheduled report expiration: Documented that `REPORT_EXPIRING` notification contracts are fully ready and tested, with background expiration cron scheduled as a future automation milestone.
+      3. Previously observed permanently failed delivery: Verified delivery `8134db20-cd61-4042-9d4f-b9a55f26314f` in database was an expected synthetic test record from Phase 9.4 and correctly remains permanently failed.
+      4. Web Push HTTPS: Confirmed Web Push uses `WebpushFCMOptions.link` with HTTPS enforcement and configurable fallback.
+      5. Android / iOS physical status: Clarified emulator/simulator/mock test coverage vs physical device provisioning prerequisites.
+      6. Custom URI schemes: Verified in-app scheme handling and documented OS manifest intent filter status.
+      7. Cross-layer traceability: Fully proved across all 10 stages.
+  - Quality Verification Results:
+    - Full backend pytest suite: 328 passed in 150.61s (319 prior + 9 new E2E integration tests).
+    - Frontend E2E suite: 17 passed in 2.0s.
+    - Full frontend offline suite: 212 tests passed.
+    - Backend static analysis: Ruff check (0 errors), Ruff format (94 files formatted), strict mypy (0 issues in 87 source files), Alembic check (0 schema drift).
+    - Frontend static analysis: `flutter analyze` (0 issues), `dart format` (clean, 0 files changed).
+  - Scope Boundaries:
+    - Minimal diffs, no unnecessary refactoring.
+    - Zero real notifications sent to real Firebase or users.
+    - Strictly zero Git write operations executed.
+
 
 
 
