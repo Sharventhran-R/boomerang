@@ -451,6 +451,7 @@ async def test_postgis_search_remains_authoritative_with_coarsened_output(
     # Public caller sees coarsened coordinates
     assert inside_item["latitude"] == 20.01
     assert inside_item["longitude"] == 20.00
-    # But distance calculation is derived accurately from PostGIS ST_Distance
+    # Distance calculation is quantized to nearest 0.5 km per Phase 10.1.2
+    # anti-triangulation policy
     assert inside_item["distance_km"] is not None
-    assert 0.5 < inside_item["distance_km"] < 0.7
+    assert inside_item["distance_km"] == 0.5

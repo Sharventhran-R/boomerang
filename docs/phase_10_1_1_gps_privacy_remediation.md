@@ -45,9 +45,7 @@ Phase 10.1.1 was commissioned to conduct an emergency audit to:
 ### 3.1 Single Spatial Column in PostgreSQL
 In `app/db/models.py`, the `Report` table defines exactly one spatial column:
 ```python
-location = mapped_column(
-    Geography(geometry_type="POINT", srid=4326), nullable=False
-)
+location = mapped_column(Geography(geometry_type="POINT", srid=4326), nullable=False)
 ```
 - Spatial GiST indexing is enabled automatically on `location`.
 - PostGIS functions (`ST_DWithin`, `ST_Distance`) evaluate distances against this single column.

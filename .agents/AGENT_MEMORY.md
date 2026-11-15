@@ -41,6 +41,8 @@
 - [x] Phase 9.8 — End-to-End Verification, Cross-Layer Traceability, Security & Hardening.
 - [x] Phase 10.1 — Threat Modelling, Security Architecture & Testable Requirements Specification.
 - [x] Phase 10.1.1 — Emergency GPS Privacy Audit & Remediation (Zero-Migration Dynamic Coarsening).
+- [x] Phase 10.1.2 — Geographic Query Privacy Hardening (Distance Quantization & Anti-Triangulation).
+- [x] Phase 10.1.3 — Geographic Inference Containment (Grid Snapping & Bucketed Sorting).
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1452,6 +1454,51 @@
   - Documentation:
     - Created comprehensive remediation deliverable: `docs/phase_10_1_1_gps_privacy_remediation.md`.
   - Zero Git write operations executed.
+- 2026-11-15: Completed Phase 10.1.2 (Geographic Query Privacy Hardening).
+  - Investigated and mitigated repeated-query triangulation / multilateration attack (`THR-LOCATION-002`, `SEC-LOCATION-002`):
+    - Proved mathematically that exact `distance_km` values calculated from authoritative PostGIS coordinates allowed circle intersection attacks capable of pinpointing personal item incident locations.
+    - Implemented distance quantization to 0.5 km multiples via `coarsen_distance` in `app/services/geo.py`, creating 500m-thick annular uncertainty rings and expanding search uncertainty to ~0.5 km^2 (~1,600x expansion).
+  - Implemented Dynamic Ownership Separation:
+    - Updated `app/services/report.py` (`list_reports`): Report owners receive exact distance (`round(dist / 1000.0, 2)`), while public and non-owner callers receive quantized distance (`coarsen_distance(dist / 1000.0)`).
+    - Preserved PostGIS `ST_DWithin` spatial filtering and `ST_Distance` order-by ranking on exact authoritative `Report.location` geometry.
+    - Updated `app/api/matches.py` (`list_report_matches` and `get_match_detail`): Opposite-party report summaries (`MatchReportSummary.distance_km`) are quantized using `coarsen_distance`.
+  - Radius & Query Parameter Hardening:
+    - Validated that `GeoSearchParams` enforces radius bounds [0.0, 5.0] km, maximum 1 decimal place, and triplet parameter enforcement.
+  - Asynchronous & Event Boundary Privacy:
+    - Verified that internal domain events (`report.created`, `report.updated`) contain coordinates strictly for backend `MatchingEventHandler`.
+    - Verified that client-facing events (`match.alert_ready`) and in-app notifications (`NotificationResponse.sanitize_data`) strip all coordinate keys (`latitude`, `longitude`, `coordinates`).
+  - Integration Hook:
+    - Defined contract for Phase 10.3 Redis-backed geographic query rate limiter (`SEC-QUOTA-001`).
+  - Verification & Quality Gates:
+    - Created `tests/test_geo_privacy_hardening.py` with 7 dedicated test suites.
+    - Updated regression assertions in `tests/test_location_privacy.py` and `tests/test_matching_api.py`.
+    - Pytest: 340 tests passing (100% pass rate).
+    - Static analysis: Ruff check (clean), Ruff format (clean across 101 files), strict Mypy (clean across 90 files).
+    - Flutter: `flutter analyze` clean (0 issues).
+  - Documentation:
+    - Produced `docs/phase_10_1_2_geographic_query_privacy.md`.
+  - Zero Git write operations executed.
+- 2026-11-15: Completed Phase 10.1.3 (Geographic Inference Containment).
+  - Remediated four active geographic inference channels demonstrated in Phase 10.1.2 adversarial review:
+    1. Distance ordering & perpendicular-bisector recovery: Implemented deterministic 500-meter coarse distance bucketing (`func.floor(distance_col / 500.0)`) in `app/services/report.py`. Intra-bucket ties are broken strictly by `created_at DESC, id ASC`, hiding authoritative distance and neutralizing order inversion.
+    2. Radius-membership bisection (`ST_DWithin` oracle): Implemented `snap_search_origin` in `app/services/geo.py`, snapping discovery query coordinates to 2 decimal places ($0.01^\circ \approx 1.1\text{ km}$). Prevents sub-meter continuous micro-stepping.
+    3. Quantization transition probing: Grid snapping prevents continuous binary search for 750m distance boundaries.
+    4. Pagination rank-order leakage: Items in the same 500m band preserve stable page placement across small probe shifts.
+  - Preserved Internal & Authoritative Geometry:
+    - PostGIS `Report.location` geometry remains exact SRID 4326 POINT.
+    - Matching candidate retrieval (`retrieve_candidates`) and scoring evaluate true physical distances (`cand.distance_meters`).
+    - Authenticated owners inspecting their own items receive exact coordinates and exact distance calculations.
+  - Formalized Phase 10.3 rate limiting integration points (`SEC-QUOTA-001`).
+  - Verification & Quality Gates:
+    - Updated `tests/test_geo_privacy_adversarial.py` (4 tests passed).
+    - Created comprehensive `tests/test_geo_inference_containment.py` covering all 13 Stage G scenarios (11 tests passed).
+    - All 43 geo, privacy, and matching tests passed in 40.49s.
+    - Ruff check: 0 errors; Ruff format: clean (104 files); strict Mypy: 0 errors across 92 files; Flutter analyze: 0 issues.
+  - Documentation:
+    - Produced `docs/phase_10_1_3_geographic_inference_containment.md`.
+  - Zero Git write operations executed.
+
+
 
 
 

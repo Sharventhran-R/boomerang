@@ -31,7 +31,7 @@ from app.schemas.match import (
     MatchListResponse,
     MatchReportSummary,
 )
-from app.services.geo import coarsen_coordinate
+from app.services.geo import coarsen_coordinate, coarsen_distance
 
 matches_router = APIRouter()
 
@@ -134,6 +134,7 @@ async def list_report_matches(
         coarsened_lat, coarsened_lon = coarsen_coordinate(
             float(opp_lat), float(opp_lon)
         )
+        quantized_dist_km = coarsen_distance(dist_km) if dist_km is not None else None
 
         opposite_summary = MatchReportSummary(
             id=opp_report.id,
@@ -147,7 +148,7 @@ async def list_report_matches(
             reward_amount=opp_report.reward_amount,
             status=opp_report.status,
             created_at=opp_report.created_at,
-            distance_km=dist_km,
+            distance_km=quantized_dist_km,
             images=opp_report.images,
         )
 
@@ -251,17 +252,21 @@ async def get_match_detail(
 
     if owns_missing:
         missing_lat_val, missing_lon_val = float(missing_lat), float(missing_lon)
+        missing_dist_km = dist_km
     else:
         missing_lat_val, missing_lon_val = coarsen_coordinate(
             float(missing_lat), float(missing_lon)
         )
+        missing_dist_km = coarsen_distance(dist_km) if dist_km is not None else None
 
     if owns_found:
         found_lat_val, found_lon_val = float(found_lat), float(found_lon)
+        found_dist_km = dist_km
     else:
         found_lat_val, found_lon_val = coarsen_coordinate(
             float(found_lat), float(found_lon)
         )
+        found_dist_km = coarsen_distance(dist_km) if dist_km is not None else None
 
     missing_summary = MatchReportSummary(
         id=match.report_missing.id,
@@ -275,7 +280,7 @@ async def get_match_detail(
         reward_amount=match.report_missing.reward_amount,
         status=match.report_missing.status,
         created_at=match.report_missing.created_at,
-        distance_km=dist_km,
+        distance_km=missing_dist_km,
         images=match.report_missing.images,
     )
 
@@ -291,7 +296,7 @@ async def get_match_detail(
         reward_amount=match.report_found.reward_amount,
         status=match.report_found.status,
         created_at=match.report_found.created_at,
-        distance_km=dist_km,
+        distance_km=found_dist_km,
         images=match.report_found.images,
     )
 

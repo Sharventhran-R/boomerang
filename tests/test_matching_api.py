@@ -205,7 +205,8 @@ async def test_list_matches_for_missing_report(
     assert opp["category"] == "ELECTRONICS"
     assert opp["latitude"] is not None
     assert opp["longitude"] is not None
-    assert opp["distance_km"] == 0.35
+    # Quantized to nearest 0.5 km per Phase 10.1.2 anti-triangulation
+    assert opp["distance_km"] == 0.5
     assert "created_by_user_id" not in opp  # Zero private leak
 
 

@@ -11,7 +11,12 @@ from sqlalchemy.orm import selectinload
 from app.db.models import Report, ReportCategory, ReportImage, ReportStatus, ReportType
 from app.schemas.geo import GeoSearchParams
 from app.schemas.report import CreateReportRequest, UpdateReportRequest
-from app.services.geo import coarsen_coordinate
+from app.services.geo import (
+    DISTANCE_BUCKET_SIZE_METERS,
+    coarsen_coordinate,
+    coarsen_distance,
+    snap_search_origin,
+)
 from app.services.outbox import (
     build_report_created_event,
     build_report_resolved_event,
@@ -215,6 +220,10 @@ async def list_reports(
             )
         )
 
+    is_pure_owner_query = (
+        user_id is not None and viewer_user_id is not None and user_id == viewer_user_id
+    )
+
     distance_col = null().label("distance")
     if (
         geo
@@ -222,8 +231,16 @@ async def list_reports(
         and geo.longitude is not None
         and geo.radius_km is not None
     ):
+        if is_pure_owner_query:
+            query_lat, query_lon = float(geo.latitude), float(geo.longitude)
+        else:
+            # Stage C: Snap search origin to 2-decimal grid (~1.1 km) for public
+            # discovery queries. Converts continuous probe movement into discrete
+            # grid steps, neutralizing sub-meter bisection (ST_DWithin oracle).
+            query_lat, query_lon = snap_search_origin(geo.latitude, geo.longitude)
+
         radius_meters = float(geo.radius_km) * 1000.0
-        search_point = WKTElement(f"POINT({geo.longitude} {geo.latitude})", srid=4326)
+        search_point = WKTElement(f"POINT({query_lon} {query_lat})", srid=4326)
         filters.append(func.ST_DWithin(Report.location, search_point, radius_meters))
         distance_col = func.ST_Distance(Report.location, search_point).label("distance")
 
@@ -239,9 +256,19 @@ async def list_reports(
         count_query = count_query.where(*filters)
 
     if sort == "distance":
-        query = query.order_by(
-            asc(distance_col), desc(Report.created_at), asc(Report.id)
-        )
+        if is_pure_owner_query:
+            query = query.order_by(
+                asc(distance_col), desc(Report.created_at), asc(Report.id)
+            )
+        else:
+            # Stage B: Bucketed distance sorting for public discovery.
+            # Groups discovery results into 500-meter coarse distance bands.
+            # Ties within each band are broken strictly by creation time (newest first)
+            # and unique ID, eliminating perpendicular-bisector ordering attacks.
+            distance_bucket = func.floor(distance_col / DISTANCE_BUCKET_SIZE_METERS)
+            query = query.order_by(
+                asc(distance_bucket), desc(Report.created_at), asc(Report.id)
+            )
     elif sort == "newest":
         query = query.order_by(desc(Report.created_at), asc(Report.id))
     else:
@@ -257,13 +284,16 @@ async def list_reports(
 
     items = []
     for r, lat, lon, dist in rows:
-        if viewer_user_id is not None and r.created_by_user_id == viewer_user_id:
+        is_owner = viewer_user_id is not None and r.created_by_user_id == viewer_user_id
+        if is_owner:
             r.latitude = lat
             r.longitude = lon
+            if dist is not None:
+                r.distance_km = round(dist / 1000.0, 2)
         else:
             r.latitude, r.longitude = coarsen_coordinate(lat, lon)
-        if dist is not None:
-            r.distance_km = round(dist / 1000.0, 2)
+            if dist is not None:
+                r.distance_km = coarsen_distance(dist / 1000.0)
         items.append(r)
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
