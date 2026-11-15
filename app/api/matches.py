@@ -31,6 +31,7 @@ from app.schemas.match import (
     MatchListResponse,
     MatchReportSummary,
 )
+from app.services.geo import coarsen_coordinate
 
 matches_router = APIRouter()
 
@@ -130,14 +131,18 @@ async def list_report_matches(
             if isinstance(dist_data, dict):
                 dist_km = dist_data.get("distance_km")
 
+        coarsened_lat, coarsened_lon = coarsen_coordinate(
+            float(opp_lat), float(opp_lon)
+        )
+
         opposite_summary = MatchReportSummary(
             id=opp_report.id,
             type=opp_report.type,
             title=opp_report.title,
             description=opp_report.description,
             category=opp_report.category,
-            latitude=float(opp_lat),
-            longitude=float(opp_lon),
+            latitude=coarsened_lat,
+            longitude=coarsened_lon,
             event_time=opp_report.event_time,
             reward_amount=opp_report.reward_amount,
             status=opp_report.status,
@@ -244,14 +249,28 @@ async def get_match_detail(
         if isinstance(dist_data, dict):
             dist_km = dist_data.get("distance_km")
 
+    if owns_missing:
+        missing_lat_val, missing_lon_val = float(missing_lat), float(missing_lon)
+    else:
+        missing_lat_val, missing_lon_val = coarsen_coordinate(
+            float(missing_lat), float(missing_lon)
+        )
+
+    if owns_found:
+        found_lat_val, found_lon_val = float(found_lat), float(found_lon)
+    else:
+        found_lat_val, found_lon_val = coarsen_coordinate(
+            float(found_lat), float(found_lon)
+        )
+
     missing_summary = MatchReportSummary(
         id=match.report_missing.id,
         type=match.report_missing.type,
         title=match.report_missing.title,
         description=match.report_missing.description,
         category=match.report_missing.category,
-        latitude=float(missing_lat),
-        longitude=float(missing_lon),
+        latitude=missing_lat_val,
+        longitude=missing_lon_val,
         event_time=match.report_missing.event_time,
         reward_amount=match.report_missing.reward_amount,
         status=match.report_missing.status,
@@ -266,8 +285,8 @@ async def get_match_detail(
         title=match.report_found.title,
         description=match.report_found.description,
         category=match.report_found.category,
-        latitude=float(found_lat),
-        longitude=float(found_lon),
+        latitude=found_lat_val,
+        longitude=found_lon_val,
         event_time=match.report_found.event_time,
         reward_amount=match.report_found.reward_amount,
         status=match.report_found.status,

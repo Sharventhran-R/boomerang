@@ -40,6 +40,7 @@
 - [x] Phase 9.7 — Deep Links & Push Notification Interactions.
 - [x] Phase 9.8 — End-to-End Verification, Cross-Layer Traceability, Security & Hardening.
 - [x] Phase 10.1 — Threat Modelling, Security Architecture & Testable Requirements Specification.
+- [x] Phase 10.1.1 — Emergency GPS Privacy Audit & Remediation (Zero-Migration Dynamic Coarsening).
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1433,6 +1434,24 @@
     - Minimal diffs, no unnecessary refactoring.
     - Zero real notifications sent to real Firebase or users.
     - Strictly zero Git write operations executed.
+- 2026-11-15: Completed Phase 10.1.1 (Emergency GPS Privacy Audit & Remediation).
+  - Investigated and empirically proved GPS coordinate exposure across application endpoints:
+    - Confirmed exposure on public report listings (`GET /api/v1/reports`), public report detail (`GET /api/v1/reports/{id}`), match listings (`GET /api/v1/reports/{id}/matches`), and match detail (`GET /api/v1/matches/{id}`).
+    - Disproved exposure on recovery requests (`RecoveryRequestReportResponse` serializes 0 coordinates) and notifications (`NotificationResponse.sanitize_data` strips location keys).
+  - Remediation via Zero-Migration Dynamic Serialization:
+    - Created `app/services/geo.py` with `coarsen_coordinate` snapping coordinates to 2 decimal places (~1.1 km grid).
+    - Updated `app/services/report.py` to evaluate caller ownership dynamically: authentic owners receive exact raw GPS coordinates, while public and non-owner callers receive coarsened coordinates.
+    - Updated `app/api/reports.py` to enforce caller ownership checks on report listings and detail inspection.
+    - Updated `app/api/matches.py` to coarsen opposite-party coordinates in match listings and match detail while preserving the caller's own report coordinates.
+    - Preserved single source of truth in PostgreSQL PostGIS `Report.location` for candidate matching, distance calculation, and spatial filtering.
+  - Regression Testing & Quality Gates:
+    - Created `tests/test_location_privacy.py` with 5 test suites covering 12 distinct privacy and spatial assertions.
+    - Full backend test suite: 333 passed in 176.84s (100% pass rate).
+    - Full static analysis: strict mypy (0 issues in 88 source files), Ruff check (0 errors), Ruff format (98 files formatted).
+    - Flutter client: `flutter analyze` clean (0 issues), 43 location and map widget tests passing.
+  - Documentation:
+    - Created comprehensive remediation deliverable: `docs/phase_10_1_1_gps_privacy_remediation.md`.
+  - Zero Git write operations executed.
 
 
 

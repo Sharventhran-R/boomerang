@@ -26,6 +26,7 @@ from app.schemas.report import (
     UpdateReportRequest,
 )
 from app.services import report as report_service
+from app.services.geo import coarsen_coordinate
 
 reports_router = APIRouter()
 
@@ -66,6 +67,7 @@ async def list_my_reports(
     return await report_service.list_reports(
         db=db,
         user_id=current_user.id,
+        viewer_user_id=current_user.id,
         type=type,
         category=category,
         status=status,
@@ -113,6 +115,7 @@ async def list_reports(
         return await report_service.list_reports(
             db=db,
             user_id=current_user.id,
+            viewer_user_id=current_user.id,
             type=type,
             category=category,
             status=status,
@@ -131,8 +134,10 @@ async def list_reports(
             detail="sort=distance requires latitude, longitude, and radius_km",
         )
 
+    viewer_id = current_user.id if current_user else None
     return await report_service.list_reports(
         db=db,
+        viewer_user_id=viewer_id,
         type=type,
         category=category,
         status=status,
@@ -156,6 +161,12 @@ async def get_report(
     report = await report_service.get_report_by_id(db, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    if current_user is None or report.created_by_user_id != current_user.id:
+        coarsened_lat, coarsened_lon = coarsen_coordinate(
+            getattr(report, "latitude", 0.0), getattr(report, "longitude", 0.0)
+        )
+        report.latitude = coarsened_lat  # type: ignore[attr-defined]
+        report.longitude = coarsened_lon  # type: ignore[attr-defined]
     return report
 
 

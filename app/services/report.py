@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.db.models import Report, ReportCategory, ReportImage, ReportStatus, ReportType
 from app.schemas.geo import GeoSearchParams
 from app.schemas.report import CreateReportRequest, UpdateReportRequest
+from app.services.geo import coarsen_coordinate
 from app.services.outbox import (
     build_report_created_event,
     build_report_resolved_event,
@@ -192,6 +193,7 @@ async def list_reports(
     sort: str = "newest",
     geo: GeoSearchParams | None = None,
     user_id: uuid.UUID | None = None,
+    viewer_user_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     count_query = select(func.count(Report.id))
 
@@ -255,8 +257,11 @@ async def list_reports(
 
     items = []
     for r, lat, lon, dist in rows:
-        r.latitude = lat
-        r.longitude = lon
+        if viewer_user_id is not None and r.created_by_user_id == viewer_user_id:
+            r.latitude = lat
+            r.longitude = lon
+        else:
+            r.latitude, r.longitude = coarsen_coordinate(lat, lon)
         if dist is not None:
             r.distance_km = round(dist / 1000.0, 2)
         items.append(r)
