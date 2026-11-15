@@ -231,6 +231,50 @@ The exact field/type/constraints will be finalized during Phase 2.
 Eventual application must use JWT authentication. Security requirements: Registration, Login, Password hashing (Argon2id), Protected endpoints, Authorization, User ownership checks, Rate limiting, Spam/duplicate prevention, Secure environment variables. No secrets in Git.
 *Deferred features (to be implemented in future phases): Email Verification, Multi-Factor Authentication (MFA), password reset workflows.*
 
+### 12.1 Report Creation Limits & Quota Policy
+- **Missing Reports**:
+  - Maximum 5 Missing reports per user per calendar day.
+  - Maximum 10 simultaneously active Missing reports per user.
+  - Daily allowance resets at midnight Asia/Kolkata (`UTC+05:30`).
+  - Creating a report consumes one daily creation allowance.
+  - Editing an existing report does not consume another allowance.
+  - Cancelling, deleting, resolving, or expiring a report does NOT refund its consumed daily allowance.
+  - Deleting and recreating a report must not bypass the daily quota.
+  - Resolved, cancelled, and expired reports do not count towards the active-report cap.
+- **Found Reports (Progressive Daily Limits)**:
+  - New account tier: 5 Found reports per day.
+  - Established account tier: 15 Found reports per day.
+  - Trusted account tier: 30 Found reports per day.
+  - No unlimited Found-report tier initially.
+  - No separate active-report cap for Found reports initially.
+  - Account progression is automatic based on legitimate activity, verification status, and abuse history.
+  - Account age alone must NOT grant higher limits.
+  - Creating large numbers of reports must NOT automatically increase trust (anti-gaming invariant).
+  - Suspicious accounts can have their privileges restricted.
+  - Each distinct found item receives its own report. Multi-item batch reports are prohibited.
+- **Report Creation Quota Service**:
+  - Centralized, database-backed atomic reservation within the report creation transaction.
+  - Concurrency safety preventing race condition bypass.
+  - Failed report creation rolls back and does not consume quota.
+  - Backend authoritative; Flutter client reflects real-time remaining quota.
+
+### 12.2 Location Visibility & Privacy Policy
+- Public discovery endpoints (`GET /api/v1/reports`, `GET /api/v1/reports/{id}`) must return approximate/fuzzed coordinates (`~1 km` coarsening / deterministic jitter).
+- Precise incident coordinates remain private by default, accessible only to the authentic report creator.
+- Disclosing exact location to an accepted recovery counterparty requires explicit creator authorization.
+- PostGIS searches enforce discrete radius quantization (`[1, 2, 5, 10, 25, 50]` km) and rate limiting to prevent coordinate triangulation.
+- Notifications, system logs, and Kafka event payloads must never leak raw high-precision incident coordinates.
+
+### 12.3 Suspicious Activity & Moderation Policy
+- **Core Principle**: Flag suspicious activity for review rather than automatically blocking legitimate users.
+- **Severity Categories**:
+  - `LOW` (Monitor): Track anomaly metrics and log security audit events. Normal user access retained.
+  - `MEDIUM` (Flag for Review): Create moderation flag for review queue. Normal user access retained.
+  - `HIGH` (Temporarily Restrict Feature): Temporarily rate-limit or pause sensitive functionality (e.g. recovery claims) pending review.
+  - `CRITICAL` (Immediate Escalation): Temporarily freeze creation privileges; escalate for immediate moderator review.
+- Automatic permanent account bans based solely on heuristic signals are strictly prohibited.
+- User appeals and transparent status messaging must be supported.
+
 ## 13. Python Development Environment
 The backend must use a project-local Python virtual environment: `.venv/`
 Requirements: Python 3.12+, Never install project dependencies globally, Use `.venv` for development (must be ignored by Git), Use `python -m pip`, `python -m pytest`, `python -m ruff`, `python -m mypy`. Project should contain `requirements.txt` and `pyproject.toml` (with Ruff, mypy, pytest configs).
@@ -285,8 +329,11 @@ Phase 2 should establish the database foundation for: users, reports, report ima
 - Phase 9.4 complete (Firebase FCM Configuration & Push Dispatcher in `app/services/fcm.py` and `app/services/push_dispatcher.py`)
 - Phase 9.5 complete (Notification REST APIs & Device Management in `app/api/notifications.py`, `app/api/devices.py`, and `app/schemas/notification.py`)
 - Phase 9.6 complete (Flutter Notification UI, Notification Centre, Settings & FCM Device Registration in `frontend/lib/` and `frontend/test/`)
+- Phase 9.7 complete (Deep Links & Push Notification Interactions in `frontend/lib/services/notification_router.dart` and `frontend/test/`)
+- Phase 9.8 complete (End-to-End Verification, Cross-Layer Traceability, Security & Hardening in `tests/test_notification_e2e.py` and `frontend/test/phase_9_8_e2e_test.dart`)
+- Phase 10.1 complete (Threat Modelling & Security Specification in `docs/security_threat_model.md`, `docs/security_architecture.md`, `docs/security_requirements.md`)
 - Infrastructure operational: PostgreSQL 16 + PostGIS 3.4, Apache Kafka 3.8, MinIO object storage
-- Backend test suite reported clean (233 passed)
+- Backend test suite reported clean (328 passed in 150.61s)
 - Quality gates reported clean: Ruff linter & format, strict mypy, Alembic schema check, Flutter analyze
 - Outstanding Production-Readiness Item: Live Kafka consumer-group rebalance integration test pending prior to deploying multi-consumer replicas (see `.agents/AGENT_MEMORY.md`)
 

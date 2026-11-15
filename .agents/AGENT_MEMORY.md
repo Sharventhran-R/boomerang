@@ -39,6 +39,7 @@
 - [x] Phase 9.6 — Flutter Notification UI, Notification Centre, Settings & FCM Device Registration.
 - [x] Phase 9.7 — Deep Links & Push Notification Interactions.
 - [x] Phase 9.8 — End-to-End Verification, Cross-Layer Traceability, Security & Hardening.
+- [x] Phase 10.1 — Threat Modelling, Security Architecture & Testable Requirements Specification.
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1359,8 +1360,40 @@
     - Zero new backend dependencies or schema changes (Phase 9.5 contracts were 100% sufficient).
     - Zero Phase 9.8 end-to-end load tests.
     - Strictly zero Git write operations executed.
-- 2026-11-12: Completed Phase 9.8 — End-to-End Verification & Hardening:
-  - Verification & Hardening Deliverables:
+- 2026-11-15: Completed Phase 10.1 — Threat Modelling & Security Specification:
+  - Architecture & Security Deliverables:
+    - Comprehensive STRIDE Threat Model (`docs/security_threat_model.md`):
+      - System assets categorized under Restricted, Confidential, Internal, and Public classifications.
+      - Trust boundaries mapped across 6 distinct system perimeters (Internet, FastAPI runtime, PostgreSQL/PostGIS, MinIO/S3, Kafka KRaft, external FCM/APNs/WebPush).
+      - Attacker profiles defined (anonymous scrapers, credential stuffers, spammers, extortionists, stalkers, upload exploiters).
+      - Attack surfaces catalogued across 8 core subsystems.
+      - Full STRIDE threat register with 15 mandatory fields per threat (Threat ID, Component, Category, Profile, Scenario, Preconditions, Impact, Existing Controls, Gaps, Mitigation, Severity, Likelihood, Risk Priority, Phase, Verification Method).
+      - Critical risks identified: `THR-REPORT-001` (Unbounded report creation / quota absence) and `THR-LOCATION-001` (Public exposure of raw GPS incident coordinates).
+      - High risks identified: `THR-AUTH-001` (Credential stuffing), `THR-UPLOAD-001` (MIME spoofing), `THR-UPLOAD-002` (EXIF GPS leakage), `THR-LOCATION-002` (Iterative radius triangulation), `THR-DOS-001` (Device flooding fan-out), `THR-ADMIN-001` (Absence of RBAC).
+    - Security Architecture Blueprint (`docs/security_architecture.md`):
+      - Authentication boundaries: 15-min JWT access tokens, SHA-256 hashed refresh tokens, single-use refresh rotation, `tokens_invalid_before` revocation.
+      - Authorization enforcement: Declarative dependency injection pattern (`require_report_owner`, `require_recovery_participant`), BOLA/IDOR matrix.
+      - Report Creation Quota Architecture:
+        - Missing reports: Max 5/day, max 10 simultaneously active, reset midnight Asia/Kolkata (`UTC+05:30`), non-refundable.
+        - Found reports: Progressive daily tiers (5 New / 15 Established / 30 Trusted), no unlimited tier, automatic activity/reputation-based trust progression, single-item invariant (no batch reports).
+        - Centralized Quota Service: Database-backed atomic reservation inside the report creation transaction, row locking, rollback safety, Flutter quota API.
+      - Multi-layer rate limiting: Auth sensitive (5/15m), writes (10/m), uploads (5/m), recovery claims (5/h), spatial searches (30/m), reads (120/m).
+      - Location Privacy Architecture: Dual-coordinate model (precise incident `location` vs coarsened/jittered `location_fuzzed`), public visibility restrictions, discrete radius quantization (`[1, 2, 5, 10, 25, 50]` km), distance discretization.
+      - Image Upload Pipeline: Triple-gate verification (Content-Type header, magic-byte inspection, Pillow decompression & EXIF stripping, dimension bounding $\le 4096\times 4096$).
+      - Recovery Handshake Protocol: Two-party handover confirmation code / mutual confirmation preventing unilateral takeover, verification attempt throttling (max 3 tries).
+      - Suspicious Activity & Moderation Policy: Severity categories (LOW, MEDIUM, HIGH, CRITICAL), flag-for-review over automated blocking, no automatic permanent bans, bounded feature pauses, appeals workflow.
+      - Administrative Architecture: RBAC model (User, Moderator, Superadmin), append-only `security_audit_logs`.
+    - Testable Security Requirements (`docs/security_requirements.md`):
+      - 21 testable requirements with stable identifiers: `SEC-AUTH-001` through `004`, `SEC-API-001` through `002`, `SEC-QUOTA-001` through `004`, `SEC-LOCATION-001` through `002`, `SEC-RECOVERY-001` through `002`, `SEC-UPLOAD-001` through `003`, `SEC-NOTIFICATION-001` through `002`, `SEC-KAFKA-001`, `SEC-ADMIN-001` through `002`, `SEC-PRIVACY-001`.
+    - Project Specification Update:
+      - Synchronized `.agents/PROJECT_SPEC.md` with confirmed quotas, tier limits, active caps, timezone reset, location privacy rules, and moderation policies without introducing missing-person functionality.
+    - Implementation Roadmap:
+      - Full risk-to-phase mapping established for Phases 10.2 through 10.10.
+  - Scope Boundaries:
+    - Strictly audit, threat modelling, documentation, and specification.
+    - Zero production application code or database schema modified.
+    - Zero Git write operations executed.
+
     - Comprehensive Verification Plan & Test Matrix:
       - Documented 10-stage lifecycle traceability from Domain Event -> Outbox -> Kafka -> Consumer -> PostgreSQL -> Dispatcher -> FCM -> Flutter -> Authorized Destination.
       - Generated full lifecycle matrix across all 6 domain events and all 9 notification types.
