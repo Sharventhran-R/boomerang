@@ -82,7 +82,22 @@ services:
       - "1"
     restart: "no"
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: tracker_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 volumes:
   postgres_data:
   minio_data:
   kafka_data:
+  redis_data:

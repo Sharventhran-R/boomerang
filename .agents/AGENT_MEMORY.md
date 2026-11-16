@@ -46,6 +46,7 @@
 - [x] Phase 10.2 — API Security & Authentication Hardening (BOLA/IDOR Defense, Token Invalidation, RFC 6819).
 - [x] Phase 10.2.1 — Access Token Revocation Reliability Audit (Session-Bound Revocation & TTL Pruning).
 - [x] Phase 10.2.2 — Legacy Token Compatibility & Session Cleanup Verification (Strict Session Binding & Retention Audit).
+- [x] Phase 10.3 — Distributed Rate Limiting & Abuse Prevention (Redis Sliding Window, Trusted Proxies, PostgreSQL Authoritative Quotas, IST Midnight Resets).
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1570,6 +1571,59 @@
       - Cleanup preserves active and recently revoked sessions for replay detection.
     - Backend regression suite: 73 passed in 127s across hardening, auth, reports, recovery, and geo privacy suites.
     - Static analysis: Ruff check (0 errors), Ruff format (clean, 107 files), strict Mypy (0 issues across 93 source files), Alembic check (0 unmanaged schema drift).
+  - Zero Git write operations executed.
+- 2026-11-16: Completed Phase 10.3 (Distributed Rate Limiting & Abuse Prevention).
+  - Architecture & Infrastructure (Redis + PostgreSQL Separation):
+    - Deployed Redis 7.2 container (`tracker_redis`) in `docker-compose.yml` on port 6379 with persistent volume and healthcheck.
+    - Added `redis>=5.0.0` and `tzdata>=2024.1` to `requirements.txt`.
+    - Created `app/core/redis.py`: Singleton async Redis client and connection pool with multi-event-loop resilience and graceful shutdown in FastAPI lifespan. Added Redis connectivity to `/health`.
+  - Distributed Rate-Limiting Engine:
+    - Created `app/services/rate_limiter.py`: Atomic sliding-window rate limiter powered by Redis Lua script (`ZREMRANGEBYSCORE`, `ZCARD`, `ZADD`, `EXPIRE`).
+    - Standard RFC 6585 compliance: Injects `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` on HTTP 429.
+    - Configured failure policies: Fail-closed (HTTP 503) for sensitive authentication routes; fail-open with warnings for geographic discovery reads.
+  - Client IP Identification & Trusted Proxy Traversal:
+    - Created `app/core/security_ip.py`: Safe `get_client_ip(request)` resolving peer address against `settings.TRUSTED_PROXIES`.
+    - Direct peer IP is authoritative for untrusted peers; `X-Forwarded-For` is traversed right-to-left only when connecting from verified trusted proxies.
+  - Authentication Abuse Prevention:
+    - `POST /api/v1/auth/register`: IP rate limit enforced (5/min).
+    - `POST /api/v1/auth/login`: IP rate limit enforced (10/min) + Account-identifier throttle (5 failed attempts per email per minute) with generic 401 message preservation.
+  - Geographic Discovery Protection:
+    - `GET /api/v1/reports`: Anonymous callers limited to 10/min by IP; authenticated callers limited to 30/min by user ID (with secondary IP ceiling).
+    - Preserves all Phase 10.1 spatial privacy protections (coarsened coordinates, quantized distances, cell jitter, non-authoritative bounds).
+  - Authoritative PostgreSQL Report Quotas & User Trust Progression:
+    - Model changes in `app/db/models.py`: Added `UserTrustTier` (`NEW`, `ESTABLISHED`, `TRUSTED`), `User.trust_tier`, and `UserDailyQuota` table with `(user_id, quota_date)` unique constraint.
+    - Alembic migration `b6acff44cf0d_phase_10_3_user_quotas.py` applied cleanly.
+    - Service `app/services/quota.py`: Atomic quota check and increment with row locking (`SELECT ... FOR UPDATE`).
+    - Enforced missing report daily limit (5) and simultaneously active missing report cap (10).
+    - Enforced found report daily limit based on user trust tier (`NEW`: 5, `ESTABLISHED`: 15, `TRUSTED`: 30).
+    - Daily reset boundary calculated in Indian Standard Time (`Asia/Kolkata`).
+    - Durable non-refundable quota consumption: Deleting or resolving reports does not refund daily quota.
+    - New API endpoint `GET /api/v1/reports/quota-status` in `app/api/reports.py` returning full user quota metrics and `resets_at` timestamp.
+  - Automated Verification & Security Tests:
+    - Created `tests/test_rate_limiter.py` with 9 tests covering sliding-window logic, 20-request concurrency atomicity, RFC 6585 headers, fail-closed/open behavior, IP spoofing defense, register limits, login account throttling, and discovery limits.
+    - Created `tests/test_report_quotas.py` with 6 tests covering missing daily limits, active missing caps, non-refundable consumption, found tiered quotas, concurrent creation safety, and quota status endpoint.
+    - All 15 tests passed cleanly.
+    - Static analysis: Ruff check (0 errors), Ruff format (clean across 115 files), strict Mypy (0 issues across 101 source files), Alembic check (clean, 0 schema drift).
+    - Frontend quality gates: `flutter analyze` clean (0 issues).
+  - Zero Git write operations executed.
+- 2026-11-16: Completed Phase 10.3 Final Policy Corrections and Full Verification (Phase 10.3 Sign-Off).
+  - Quota Policy Validation & Conformance:
+    - Verified Missing report quotas: strictly 5 reports created per day, maximum 10 simultaneously active reports, identical across all trust tiers (NEW, ESTABLISHED, TRUSTED).
+    - Verified Found report quotas: strictly tiered by trust tier (NEW: 5, ESTABLISHED: 15, TRUSTED: 30), with zero active cap initially.
+    - Verified durability invariants: failed creations roll back quota allocations; report updates, resolutions, cancellations, and deletions never refund consumed daily quotas; parent `User` row-locking serializes transactions to eliminate race conditions on first-time quota row creation.
+  - Trust-Tier Progression Limitation:
+    - Confirmed progression logic is explicitly deferred pending approved administrative moderation policies; all new and existing accounts default to `NEW`; users cannot self-elevate; profile/report endpoints reject trust tier inputs.
+  - Full-Suite Test Suite Corrections (Resolved all 8 Failures):
+    - Failure A (`test_geo.py`): Resolved 429 quota conflict in `test_spatial_filtering_before_pagination_and_radius_boundaries` by splitting 6 report creations across two user accounts (3 each), keeping within the 5-report limit while preserving 100% of spatial filtering and pagination assertions.
+    - Failure B (`test_geo_privacy_adversarial.py`): Resolved 429 rate limit in `test_adversarial_distance_order_inversion_bisector_recovery` by clearing the Redis discovery rate-limit key for the test IP during the 12-probe bisection loop (controlled Redis test state), preserving full adversarial validation.
+    - Failures C-H (`test_outbox.py` & `test_notification_e2e.py`): Resolved cross-test transactional outbox pollution by introducing an autouse outbox cleanup fixture in `test_outbox.py` and `e2e_ctx` in `test_notification_e2e.py`, eliminating backlogged pending/processing outbox events from earlier test suites without affecting concurrent transactional isolation or `SKIP LOCKED` tests.
+  - Production Trusted Proxy Documentation:
+    - Updated `docs/security_architecture.md` and `docs/security_requirements.md` (`SEC-PROXY-001`): documented that direct connections ignore forwarded headers from untrusted peers, reverse proxy deployments must explicitly configure `TRUSTED_PROXY_IPS`, default remains strictly local loopback (`["127.0.0.1", "::1"]`), and broad CIDRs (`0.0.0.0/0`, `::/0`) are strictly forbidden.
+  - Full Final Verification Results:
+    - Full backend pytest suite: 403 passed, 0 failed, 0 errors in 254.69s (100% clean).
+    - Focused test suites: `test_rate_limiter.py` (9 passed), `test_report_quotas.py` (6 passed), `test_geo.py` & `test_geo_privacy_adversarial.py` (10 passed), `test_outbox.py` & `test_notification_e2e.py` (27 passed).
+    - Static analysis: Ruff check (0 errors), Ruff format (115 files clean), strict Mypy (0 issues across 101 source files), Alembic check (0 unmanaged schema drift).
+    - Frontend quality gates: `flutter analyze` clean (0 issues, ran in 5.4s), 212 unit/widget tests passed.
   - Zero Git write operations executed.
 
 

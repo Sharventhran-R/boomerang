@@ -24,6 +24,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dispatcher_task: asyncio.Task[None] | None = None
     stop_event: asyncio.Event | None = None
 
+    if settings.RATE_LIMIT_ENABLED:
+        from app.core.redis import init_redis_pool
+
+        init_redis_pool()
+
     if settings.PUSH_DISPATCHER_ENABLED:
         from app.services.push_dispatcher import PushDispatcher
 
@@ -42,6 +47,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await asyncio.wait_for(dispatcher_task, timeout=5.0)
             except (TimeoutError, asyncio.CancelledError):
                 dispatcher_task.cancel()
+
+        if settings.RATE_LIMIT_ENABLED:
+            from app.core.redis import close_redis_pool
+
+            await close_redis_pool()
 
 
 app = FastAPI(
@@ -100,4 +110,20 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     except Exception:
         db_status = "error"
 
-    return {"status": "ok", "database": db_status}
+    redis_status = "disabled"
+    if settings.RATE_LIMIT_ENABLED:
+        from app.core.redis import check_redis_health
+
+        redis_ok = await check_redis_health()
+        redis_status = "ok" if redis_ok else "error"
+
+    overall_status = (
+        "ok"
+        if db_status == "ok" and (redis_status in ("ok", "disabled"))
+        else "degraded"
+    )
+    return {
+        "status": overall_status,
+        "database": db_status,
+        "redis": redis_status,
+    }

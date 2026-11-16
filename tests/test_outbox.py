@@ -2,12 +2,13 @@
 
 import socket
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.config import settings
 from app.db.database import AsyncSessionLocal
@@ -34,6 +35,30 @@ def _is_kafka_listening(host: str, port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+@pytest.fixture(autouse=True)
+async def clean_pending_outbox_events() -> AsyncGenerator[None, None]:
+    """Ensures each test operates on a clean outbox state without backlog pollution."""
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            delete(OutboxEvent).where(
+                OutboxEvent.status.in_(
+                    [OutboxStatus.PENDING, OutboxStatus.PROCESSING, OutboxStatus.FAILED]
+                )
+            )
+        )
+        await session.commit()
+    yield
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            delete(OutboxEvent).where(
+                OutboxEvent.status.in_(
+                    [OutboxStatus.PENDING, OutboxStatus.PROCESSING, OutboxStatus.FAILED]
+                )
+            )
+        )
+        await session.commit()
 
 
 async def register_user(client: AsyncClient, name: str) -> dict[str, str]:

@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import delete, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +30,10 @@ from app.services.auth import (
     verify_access_token,
     verify_password,
 )
+from app.services.rate_limiter import (
+    check_login_rate_limits,
+    check_register_rate_limit,
+)
 
 auth_router = APIRouter()
 users_router = APIRouter()
@@ -38,10 +42,16 @@ users_router = APIRouter()
 @auth_router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)) -> Any:
+async def register(
+    user_in: UserCreate,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
     """
     Register a new user.
     """
+    await check_register_rate_limit(request, response=response)
     email = user_in.email.lower()
 
     # Check duplicate
@@ -73,10 +83,16 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)) -> A
 
 
 @auth_router.post("/login", response_model=Token)
-async def login(user_in: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
+async def login(
+    user_in: UserLogin,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
     """
     Login and return access and refresh tokens.
     """
+    await check_login_rate_limits(request, email=user_in.email, response=response)
     email = user_in.email.lower()
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()

@@ -432,14 +432,31 @@ async def test_spatial_filtering_before_pagination_and_radius_boundaries(
     token = res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
+    # Register second user to stay within the 5 missing reports/day quota per user
+    test_email_2 = f"geo_pagi2_{user_id}@example.com"
+    res2 = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Geo Pagination 2",
+            "email": test_email_2,
+            "password": "password123",
+        },
+    )
+    res2 = await client.post(
+        "/api/v1/auth/login",
+        json={"email": test_email_2, "password": "password123"},
+    )
+    token2 = res2.json()["access_token"]
+    headers2 = {"Authorization": f"Bearer {token2}"}
+
     base_lat, base_lon = 10.0, 10.0
     run_id = uuid.uuid4().hex[:6]
 
-    # Create 3 reports INSIDE 5.0 km radius:
+    # Create 3 reports INSIDE 5.0 km radius (User 1):
     # 1. 0.0 km
     # 2. ~0.5 km away (lat offset 0.0045 => ~0.50 km)
     # 3. ~4.9 km away (lat offset 0.0440 => ~4.89 km)
-    # And 3 reports OUTSIDE 5.0 km radius:
+    # And 3 reports OUTSIDE 5.0 km radius (User 2):
     # 4. ~5.5 km away (lat offset 0.0500 => ~5.56 km)
     # 5. ~6.1 km away (lat offset 0.0550 => ~6.12 km)
     # 6. ~10.0 km away (lat offset 0.0900 => ~10.01 km)
@@ -454,7 +471,7 @@ async def test_spatial_filtering_before_pagination_and_radius_boundaries(
         {"title": f"Outside_10km_{run_id}", "lat": 10.0900, "lon": 10.0},
     ]
 
-    for r in inside_reports + outside_reports:
+    for r in inside_reports:
         create_res = await client.post(
             "/api/v1/reports",
             json={
@@ -467,6 +484,22 @@ async def test_spatial_filtering_before_pagination_and_radius_boundaries(
                 "event_time": datetime.now(UTC).isoformat(),
             },
             headers=headers,
+        )
+        assert create_res.status_code == 201
+
+    for r in outside_reports:
+        create_res = await client.post(
+            "/api/v1/reports",
+            json={
+                "type": "MISSING",
+                "title": r["title"],
+                "description": "Spatial pagination test report",
+                "category": "OTHER",
+                "latitude": r["lat"],
+                "longitude": r["lon"],
+                "event_time": datetime.now(UTC).isoformat(),
+            },
+            headers=headers2,
         )
         assert create_res.status_code == 201
 

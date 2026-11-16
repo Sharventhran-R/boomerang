@@ -6,6 +6,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
 )
@@ -18,6 +19,7 @@ from app.api.deps import get_current_user, get_optional_current_user
 from app.db.database import get_db
 from app.db.models import ReportCategory, ReportStatus, ReportType, User
 from app.schemas.geo import GeoSearchParams, get_geo_params
+from app.schemas.quota import QuotaStatusResponse
 from app.schemas.report import (
     CreateReportRequest,
     ReportImageResponse,
@@ -25,8 +27,10 @@ from app.schemas.report import (
     ReportResponse,
     UpdateReportRequest,
 )
+from app.services import quota as quota_service
 from app.services import report as report_service
 from app.services.geo import coarsen_coordinate
+from app.services.rate_limiter import check_reports_discovery_rate_limits
 
 reports_router = APIRouter()
 
@@ -79,8 +83,19 @@ async def list_my_reports(
     )
 
 
+@reports_router.get("/quota-status", response_model=QuotaStatusResponse)
+async def get_report_quota_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """Returns authenticated user's report quotas and remaining allowances."""
+    return await quota_service.get_user_quota_status(db, current_user.id)
+
+
 @reports_router.get("", response_model=ReportListResponse)
 async def list_reports(
+    request: Request,
+    response: Response,
     type: ReportType | None = None,
     category: ReportCategory | None = None,
     status: ReportStatus | None = None,
@@ -96,6 +111,13 @@ async def list_reports(
     """
     List reports with pagination and filtering.
     """
+    viewer_id = current_user.id if current_user else None
+    await check_reports_discovery_rate_limits(
+        request=request,
+        user_id=viewer_id,
+        response=response,
+    )
+
     if mine:
         if current_user is None:
             raise HTTPException(

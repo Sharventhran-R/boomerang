@@ -258,23 +258,42 @@ POST /api/v1/reports
 
 ---
 
-## 5. Rate Limiting Architecture
+## 5. Rate Limiting Architecture & Abuse Prevention (Phase 10.3)
 
 Request frequency rate limits protect system resources and operate independently of business report quotas:
 
-| Tier | Endpoints | Keying Strategy | Limit | Window | Action on Exceed |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Auth Sensitive** | `/api/v1/auth/login`<br>`/api/v1/auth/register` | Client IP + Target Email | 5 requests | 15 minutes | 429 Too Many Requests, audit log |
-| **Token Refresh** | `/api/v1/auth/refresh` | Client IP + Refresh Token | 30 requests | 1 hour | 429 Too Many Requests |
-| **Report Write** | `POST /api/v1/reports`<br>`PATCH /api/v1/reports/{id}` | User ID + Client IP | 10 requests | 1 minute | 429 Too Many Requests |
-| **Image Upload** | `POST /api/v1/reports/{id}/images` | User ID | 5 requests | 1 minute | 429 Too Many Requests |
-| **Recovery Requests**| `POST /api/v1/recovery-requests` | User ID | 5 requests | 1 hour | 429 Too Many Requests, flag abuse |
-| **Geospatial Search**| `GET /api/v1/reports?geo=...` | User ID / Client IP | 30 requests | 1 minute | 429 Too Many Requests |
-| **Standard Reads** | `GET /api/v1/reports/{id}`<br>`GET /api/v1/notifications` | User ID / Client IP | 120 requests | 1 minute | 429 Too Many Requests |
+| Tier | Endpoints | Keying Strategy | Limit | Window | Failure Policy | Action on Exceed |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Auth Register** | `POST /api/v1/auth/register` | Client IP (`get_client_ip`) | 5 requests | 1 minute | Fail-Closed (503) | 429 Too Many Requests, `Retry-After` |
+| **Auth Login IP** | `POST /api/v1/auth/login` | Client IP (`get_client_ip`) | 10 requests | 1 minute | Fail-Closed (503) | 429 Too Many Requests, `Retry-After` |
+| **Auth Login Account** | `POST /api/v1/auth/login` | SHA-256(email) hash | 5 attempts | 1 minute | Fail-Closed (503) | 429 Too Many Requests, `Retry-After` |
+| **Discovery (Anon)** | `GET /api/v1/reports` | Client IP (`get_client_ip`) | 10 requests | 1 minute | Fail-Open (degraded) | 429 Too Many Requests, `Retry-After` |
+| **Discovery (Auth)** | `GET /api/v1/reports` | User ID + Secondary IP | 30 requests | 1 minute | Fail-Open (degraded) | 429 Too Many Requests, `Retry-After` |
 
-### Multi-Layer Rate Limiting Implementation
+### 5.1 Multi-Layer Rate Limiting Implementation
 - **Perimeter Layer (Nginx / Cloudflare)**: Coarse IP rate limiting (protects against raw layer-7 DDoS).
-- **Application Layer (FastAPI Middleware / Redis)**: Sliding-window counter keyed by `(user_id or ip, endpoint_group)`.
+- **Application Layer (Redis Sliding Window)**: Distributed sliding-window log via atomic Redis Lua script (`ZREMRANGEBYSCORE`, `ZCARD`, `ZADD`, `EXPIRE`).
+  - RFC 6585 headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`.
+- **Client IP & Trusted Proxy Boundary (`app/core/security_ip.py`)**:
+  - Direct connection host (`request.client.host`) is strictly authoritative for untrusted peers. If the direct peer is not in `TRUSTED_PROXIES`, any incoming `X-Forwarded-For` header is completely ignored to prevent spoofing.
+  - Forwarded headers (`X-Forwarded-For`) are parsed via right-to-left traversal exclusively when received from configured trusted reverse proxies (`settings.TRUSTED_PROXIES`), stepping backward past trusted intermediate proxy hops to find the true client IP.
+  - **Production Deployment Configuration Requirement**:
+    - In containerized or reverse-proxy deployments (such as behind AWS ALB, Cloudflare, or Nginx Ingress), production operators **must explicitly configure** `TRUSTED_PROXY_IPS` (or environment variable `TRUSTED_PROXIES`) with the exact IP addresses or CIDR blocks of the trusted ingress proxies.
+    - Default configuration is deliberately restrictive: `["127.0.0.1", "::1"]` (local loopback only).
+    - **Security Rule**: Dangerously broad ranges such as `0.0.0.0/0` or `::/0` must NEVER be configured in `TRUSTED_PROXIES`. Trusting arbitrary networks allows attackers to spoof `X-Forwarded-For` and bypass IP-based rate limits.
+
+### 5.2 Authoritative PostgreSQL Report Quotas & User Trust Tiers
+Business report quotas are authoritative and enforced directly in PostgreSQL transactions with row locking (`SELECT ... FOR UPDATE`):
+- **Missing Reports**:
+  - Daily limit: Maximum 5 reports created per day.
+  - Active cap: Maximum 10 simultaneously active (`ReportStatus.ACTIVE`) missing reports.
+- **Found Reports (Tiered by `UserTrustTier`)**:
+  - `NEW`: 5 found reports per day.
+  - `ESTABLISHED`: 15 found reports per day.
+  - `TRUSTED`: 30 found reports per day.
+- **Quota Reset Boundary**: Authoritative midnight reset in Indian Standard Time (`Asia/Kolkata`, UTC+05:30).
+- **Non-Refundable Durability**: Stored in `user_daily_quotas` table; resolving, cancelling, or deleting a report does not restore consumed daily creation quota.
+- **Quota Status Endpoint**: `GET /api/v1/reports/quota-status` exposes real-time remaining quotas and `resets_at` timestamp.
 
 ---
 

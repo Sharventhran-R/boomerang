@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -9,11 +9,13 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     Float,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -123,6 +125,12 @@ class DeliveryStatus(enum.StrEnum):
     EXPIRED = "EXPIRED"
 
 
+class UserTrustTier(enum.StrEnum):
+    NEW = "NEW"
+    ESTABLISHED = "ESTABLISHED"
+    TRUSTED = "TRUSTED"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -132,6 +140,11 @@ class User(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    trust_tier: Mapped[UserTrustTier] = mapped_column(
+        Enum(UserTrustTier, name="user_trust_tier_enum"),
+        default=UserTrustTier.NEW,
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -171,6 +184,42 @@ class User(Base):
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+    daily_quotas: Mapped[list["UserDailyQuota"]] = relationship(
+        "UserDailyQuota", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserDailyQuota(Base):
+    __tablename__ = "user_daily_quotas"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        pg_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    quota_date: Mapped[date] = mapped_column(Date, nullable=False)
+    missing_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    found_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="daily_quotas")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "quota_date", name="uq_user_daily_quota_date"),
+        Index("ix_user_daily_quotas_user_date", "user_id", "quota_date"),
     )
 
 

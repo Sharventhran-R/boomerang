@@ -135,10 +135,16 @@ async def test_adversarial_distance_order_inversion_bisector_recovery(
     # 3. Attempt Active Adversarial Bisection:
     # Because relative ordering is invariant to probe movement within the bucket,
     # binary search finds ZERO order flips!
+    from app.core.redis import get_redis_client
+
+    r_client = get_redis_client()
+
     low_lat = 31.9980
     high_lat = 32.0030
     order_inversion_detected = False
     for _ in range(12):
+        # Controlled Redis state: reset discovery rate-limit key for test IP
+        await r_client.delete("rl:reports:anon:ip:127.0.0.1")
         mid_lat = (low_lat + high_lat) / 2.0
         r = await client.get(
             "/api/v1/reports",
@@ -150,6 +156,7 @@ async def test_adversarial_distance_order_inversion_bisector_recovery(
                 "search": run_id,
             },
         )
+        assert r.status_code == 200, r.text
         first_id = r.json()["items"][0]["id"]
         if first_id != id_b:
             order_inversion_detected = True

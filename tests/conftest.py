@@ -28,3 +28,26 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         base_url="http://test",
     ) as ac:
         yield ac
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def reset_rate_limit_keys() -> AsyncGenerator[None, None]:
+    try:
+        from app.core.redis import get_redis_client
+
+        r_client = get_redis_client()
+        keys = await r_client.keys("rl:*")
+        if keys:
+            await r_client.delete(*keys)
+    except Exception:
+        pass
+    yield
+    try:
+        from app.core.redis import get_redis_client
+
+        r_client = get_redis_client()
+        keys = await r_client.keys("rl:*")
+        if keys:
+            await r_client.delete(*keys)
+    except Exception:
+        pass

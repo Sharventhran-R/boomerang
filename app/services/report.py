@@ -23,12 +23,17 @@ from app.services.outbox import (
     build_report_updated_event,
     create_outbox_event,
 )
+from app.services.quota import check_and_consume_report_quota
 from app.services.storage import delete_image_from_s3, upload_image_to_s3
 
 
 async def create_report(
     db: AsyncSession, user_id: uuid.UUID, report_in: CreateReportRequest
 ) -> Report:
+    await check_and_consume_report_quota(
+        db, user_id=user_id, report_type=report_in.type
+    )
+
     report = Report(
         created_by_user_id=user_id,
         type=report_in.type,

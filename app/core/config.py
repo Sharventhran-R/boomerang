@@ -1,4 +1,6 @@
-from pydantic import Field
+from typing import Any
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,6 +68,45 @@ class Settings(BaseSettings):
     PUSH_DISPATCHER_MAX_RETRY_DELAY_SECONDS: float = Field(default=300.0, gt=0)
     PUSH_DISPATCHER_BACKOFF_MULTIPLIER: float = Field(default=2.0, ge=1.0)
     PUSH_DISPATCHER_STALE_PROCESSING_SECONDS: float = Field(default=300.0, gt=0)
+
+    # Redis & Distributed Rate Limiting
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str | None = None
+    REDIS_TIMEOUT_SECONDS: float = Field(default=2.0, gt=0)
+    RATE_LIMIT_ENABLED: bool = True
+    TRUSTED_PROXIES: list[str] = Field(default_factory=lambda: ["127.0.0.1", "::1"])
+
+    # Authentication & API Rate Limits (per minute)
+    RATE_LIMIT_LOGIN_IP_LIMIT: int = Field(default=10, ge=1)
+    RATE_LIMIT_LOGIN_ACCOUNT_LIMIT: int = Field(default=5, ge=1)
+    RATE_LIMIT_REGISTER_IP_LIMIT: int = Field(default=5, ge=1)
+    RATE_LIMIT_REPORTS_ANONYMOUS_LIMIT: int = Field(default=10, ge=1)
+    RATE_LIMIT_REPORTS_AUTHENTICATED_LIMIT: int = Field(default=30, ge=1)
+
+    # Authoritative Report Quotas (PostgreSQL)
+    QUOTA_TIMEZONE: str = "Asia/Kolkata"
+    MISSING_REPORT_DAILY_LIMIT: int = Field(default=5, ge=1)
+    MISSING_REPORT_ACTIVE_LIMIT: int = Field(default=10, ge=1)
+    FOUND_REPORT_DAILY_LIMIT_NEW: int = Field(default=5, ge=1)
+    FOUND_REPORT_DAILY_LIMIT_ESTABLISHED: int = Field(default=15, ge=1)
+    FOUND_REPORT_DAILY_LIMIT_TRUSTED: int = Field(default=30, ge=1)
+
+    @field_validator("TRUSTED_PROXIES", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [part.strip() for part in v.split(",") if part.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(item).strip() for item in v]
+        return ["127.0.0.1", "::1"]
+
+    @property
+    def redis_url(self) -> str:
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     @property
     def sync_database_url(self) -> str:

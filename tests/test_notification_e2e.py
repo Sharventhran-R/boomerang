@@ -276,7 +276,14 @@ class E2ETestContext:
 @pytest.fixture
 async def e2e_ctx() -> AsyncGenerator[E2ETestContext, None]:
     async with AsyncSessionLocal() as session:
-        # Clear any dangling pending/processing deliveries from previous runs
+        # Clear dangling pending/processing outbox events & deliveries
+        await session.execute(
+            delete(OutboxEvent).where(
+                OutboxEvent.status.in_(
+                    [OutboxStatus.PENDING, OutboxStatus.PROCESSING, OutboxStatus.FAILED]
+                )
+            )
+        )
         await session.execute(
             delete(NotificationDelivery).where(
                 NotificationDelivery.status.in_(

@@ -8,19 +8,54 @@
 ### [SEC-AUTH-001] Credential Stuffing & Login Brute-Force Rate Limiting
 - **Description**: The system must throttle failed authentication attempts to `/api/v1/auth/login`.
 - **Behavioral Specification**:
-  - Maximum 5 failed login attempts per email address within a rolling 15-minute window.
-  - Maximum 20 failed login attempts per client IP address within a rolling 15-minute window.
+  - Maximum 5 attempts per email address within a rolling 60-second window.
+  - Maximum 10 requests per client IP address within a rolling 60-second window.
   - Subsequent requests exceeding this threshold must return HTTP `429 Too Many Requests` with a `Retry-After` header indicating remaining wait time in seconds.
+  - Fail-closed policy: Returns HTTP 503 if rate limiting storage (Redis) is unreachable.
 - **Threat Addressed**: `THR-AUTH-001`
 - **Verification Method**: Submit 6 sequential invalid password attempts for a test account. Assert the first 5 return 401 Unauthorized, and the 6th returns 429 Too Many Requests with valid `Retry-After`.
 
 ### [SEC-AUTH-002] Sybil Mass-Registration Rate Limiting
 - **Description**: The system must throttle account registration at `/api/v1/auth/register`.
 - **Behavioral Specification**:
-  - Maximum 3 registrations per IP address per rolling 1-hour window.
-  - Reject disposable/temporary email provider domains using a configured blocklist.
+  - Maximum 5 registrations per IP address per rolling 60-second window.
+  - Trusted proxy traversal validates peer connection against `settings.TRUSTED_PROXIES`.
+  - Fail-closed policy: Returns HTTP 503 if rate limiting storage (Redis) is unreachable.
 - **Threat Addressed**: `THR-AUTH-002`
-- **Verification Method**: Submit 4 sequential registration requests from the same IP. Assert the 4th request returns 429 Too Many Requests.
+- **Verification Method**: Submit 6 sequential registration requests from the same IP. Assert the 6th request returns 429 Too Many Requests with valid `Retry-After`.
+
+### [SEC-RATE-001] Distributed Sliding-Window Discovery Rate Limiting
+- **Description**: The system must prevent automated geographic triangulation and API scraping via distributed Redis sliding windows.
+- **Behavioral Specification**:
+  - Anonymous callers to `GET /api/v1/reports`: Maximum 10 requests per minute per IP.
+  - Authenticated callers to `GET /api/v1/reports`: Maximum 30 requests per minute per user ID (with secondary IP ceiling).
+  - RFC 6585 compliance: Response headers include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+  - Fail-open policy: If Redis is unavailable, requests are allowed (degraded) with a warning log, while PostGIS spatial coarsening remains strictly active.
+- **Threat Addressed**: `THR-LOCATION-001`, `THR-RESOURCE-001`
+- **Verification Method**: Run 11 anonymous requests against `/api/v1/reports`; assert the 11th returns 429.
+
+### [SEC-PROXY-001] Trusted Reverse Proxy & Forwarded Header Verification
+- **Description**: The system must prevent IP-spoofing attacks that attempt to bypass IP-based rate limiting or fraud controls.
+- **Behavioral Specification**:
+  - Direct connection peer IP (`request.client.host`) is strictly authoritative if peer is not in `settings.TRUSTED_PROXIES`. Incoming `X-Forwarded-For` headers from untrusted peers are ignored.
+  - When peer is a trusted proxy, `X-Forwarded-For` is parsed via right-to-left traversal, selecting the rightmost untrusted IP address.
+  - Production deployments behind reverse proxies (Nginx, ALB, Cloudflare) must explicitly configure trusted proxy IP/CIDR ranges.
+  - Wildcard ranges (`0.0.0.0/0`, `::/0`) are forbidden.
+  - Default configuration is strictly restricted to loopback (`["127.0.0.1", "::1"]`).
+- **Threat Addressed**: `THR-AUTH-002`, `THR-RESOURCE-001`
+- **Verification Method**: Send direct request with spoofed `X-Forwarded-For: 1.1.1.1` from untrusted IP; assert rate-limiting key is bound to peer IP, not spoofed header.
+
+### [SEC-QUOTA-001] Authoritative PostgreSQL Report Quotas & Active Caps
+- **Description**: Authoritative business quotas must prevent spam item generation and resource exhaustion.
+- **Behavioral Specification**:
+  - Missing reports: Maximum 5 reports created per day; maximum 10 simultaneously active reports.
+  - Found reports: Tiered daily limit based on `UserTrustTier` (`NEW`: 5, `ESTABLISHED`: 15, `TRUSTED`: 30).
+  - Daily reset: Midnight Indian Standard Time (`Asia/Kolkata`, UTC+05:30).
+  - Atomicity & Durability: Checked and incremented with row locking (`SELECT ... FOR UPDATE`) in `user_daily_quotas`.
+  - Non-refundable: Deleting or resolving reports does not restore daily consumed quota.
+  - Status endpoint: `GET /api/v1/reports/quota-status` returns remaining allowances.
+- **Threat Addressed**: `THR-SPAM-001`, `THR-RESOURCE-002`
+- **Verification Method**: Create 6 missing reports in a day; assert 6th returns 429. Seed 10 active missing reports; assert next creation returns 429.
 
 ### [SEC-AUTH-003] Immediate Access Token Invalidation on Logout & Credential Change
 - **Description**: The system must revoke access tokens upon user logout, password change, or account suspension.
