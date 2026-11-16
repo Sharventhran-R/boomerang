@@ -43,6 +43,9 @@
 - [x] Phase 10.1.1 — Emergency GPS Privacy Audit & Remediation (Zero-Migration Dynamic Coarsening).
 - [x] Phase 10.1.2 — Geographic Query Privacy Hardening (Distance Quantization & Anti-Triangulation).
 - [x] Phase 10.1.3 — Geographic Inference Containment (Grid Snapping & Bucketed Sorting).
+- [x] Phase 10.2 — API Security & Authentication Hardening (BOLA/IDOR Defense, Token Invalidation, RFC 6819).
+- [x] Phase 10.2.1 — Access Token Revocation Reliability Audit (Session-Bound Revocation & TTL Pruning).
+- [x] Phase 10.2.2 — Legacy Token Compatibility & Session Cleanup Verification (Strict Session Binding & Retention Audit).
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1497,6 +1500,79 @@
   - Documentation:
     - Produced `docs/phase_10_1_3_geographic_inference_containment.md`.
   - Zero Git write operations executed.
+- 2026-11-15: Completed Phase 10.2 (API Security & Authentication Hardening).
+  - Hardened Token Lifecycle & Session Management:
+    - Implemented RFC 6819 § 5.2.2.3 compromise detection on refresh tokens: re-presenting a revoked refresh token revokes all active sessions for that user in `user_sessions` and invalidates access tokens.
+    - Added user existence and active account verification on `POST /api/v1/auth/refresh`, rejecting token refreshes for deleted or non-existent accounts with 401.
+    - Implemented in-memory access token revocation store (`_revoked_token_signatures`, `_user_tokens_revoked_after`) in `app/services/auth.py` providing immediate token invalidation upon `POST /api/v1/auth/logout` (`SEC-AUTH-003`) with zero database schema migrations.
+    - Added unique `jti` UUID claims to every access token.
+  - Credential Hardening & Input Sanitization:
+    - Enforced password length bounds on `UserCreate.password` and `UserLogin.password` (`max_length=128`, `min_length=8`) in `app/schemas/auth.py` to prevent Argon2id CPU exhaustion DoS (`SEC-AUTH-004`).
+    - Added non-whitespace validation on user registration `name`.
+    - Enforced `max_length=512` on `RefreshTokenRequest.refresh_token`.
+  - Information Disclosure Hardening:
+    - Sanitized `global_exception_handler` in `app/main.py` to return generic `{"detail": "Internal server error"}` rather than leaking internal database exception strings and stack traces.
+  - BOLA / IDOR Horizontal Privilege Escalation Defenses Audited & Verified:
+    - Report modifications (`PATCH /reports/{id}`, image upload/delete): strictly creator only (403 Forbidden).
+    - Recovery requests: strictly requester and recipient only (403 Forbidden).
+    - Match candidates & details: strictly report owners only (403 Forbidden).
+    - In-app notifications: strictly target user (404 Not Found to prevent enumeration).
+    - Device registration & deactivation: strictly authenticated owner (404 Not Found on foreign deactivation).
+  - Verification & Quality Gates:
+    - Created comprehensive security test suite `tests/test_api_security_hardening.py` with 19 automated tests (all 19 passed).
+    - Backend test run: 50 passed in 31.28s across security, auth, reports, privacy, and matching suites.
+    - Static analysis: Ruff check (0 errors), Ruff format (clean across 107 files), strict Mypy (0 issues across 93 source files), Alembic check (clean, 0 schema drift).
+    - Frontend quality gates: `flutter analyze` clean (0 issues in 1.7s), 28 Flutter unit and widget tests passed.
+  - Documentation:
+    - Produced `docs/phase_10_2_api_security_hardening.md`.
+  - Zero Git write operations executed.
+- 2026-11-15: Completed Phase 10.2.1 (Access Token Revocation Reliability Audit).
+  - Stage A Implementation Audit:
+    - Answered all 9 audit questions with line-level code citations across `app/services/auth.py`, `app/api/auth.py`, `app/api/deps.py`, and `app/db/models.py`.
+    - Identified that in-memory structures (`_revoked_token_signatures`, `_user_tokens_revoked_after`) were wiped on restart, isolated per Uvicorn worker/instance, and lacked TTL eviction.
+  - Stage B & C Architecture & Implementation:
+    - Selected and implemented PostgreSQL-Backed Session-Bound Revocation (RFC 8693 / OpenID Connect `sid` Session ID claim) with zero database migrations.
+    - Bound JWT access tokens to existing `UserSession.id` UUID primary keys upon login and refresh.
+    - Updated `get_current_user` and `get_optional_current_user` in `app/api/deps.py` to atomically join `User` and `UserSession` and verify `session.revoked_at is None` and `session.expires_at >= now()`.
+    - Maintained full backward compatibility for legacy or handcrafted test tokens lacking `sid`.
+    - Hardened in-memory cache in `app/services/auth.py` with `_revoked_token_expirations`, bounded max size (10,000 entries), and automated TTL pruning (`prune_expired_revocations()`) for fast-path rejection without memory leakage.
+    - Added database session cleanup routine (`cleanup_expired_sessions()`) to safely purge expired session records older than 30 days.
+  - Stage D Security Verification & Multi-Instance Tests:
+    - Added 5 new automated tests in `tests/test_api_security_hardening.py` (total 24 tests):
+      1. `test_access_token_revocation_survives_restart`: Proves revocation survives total in-memory wipe via PostgreSQL session state.
+      2. `test_access_token_revocation_visible_across_simulated_instances`: Proves revocation on Node A is immediately visible on Node B without shared memory.
+      3. `test_refresh_token_replay_kills_all_access_tokens_across_nodes`: Proves RFC 6819 compromise detection invalidates all active access tokens for the user across all instances.
+      4. `test_in_memory_eviction_prunes_expired_tokens`: Proves expired tokens and timestamps older than 35 minutes are pruned.
+      5. `test_database_cleanup_expired_sessions`: Proves database maintenance purges expired sessions older than retention.
+  - Stage E Quality Gates:
+    - Pytest: 56 passed across security, auth, reports, matching, and recovery suites.
+    - Static analysis: Ruff check (0 errors), Ruff format (clean across 107 files), strict Mypy (0 issues across 93 source files), Alembic check (clean, 0 schema drift).
+    - Frontend quality gates: `flutter analyze` clean (0 issues), 35 Flutter unit and widget tests passed.
+  - Zero Git write operations executed.
+- 2026-11-16: Completed Phase 10.2.2 (Legacy Token Compatibility & Session Cleanup Verification).
+  - Production Access Token Session-Binding Enforcement:
+    - Audited access-token validation in `app/api/deps.py`: eliminated legacy unbound fallback in `get_current_user` and `get_optional_current_user`.
+    - Enforced mandatory `sid` claim on all production access tokens; tokens missing `sid`, containing malformed UUIDs, referencing unknown sessions, referencing sessions of different users, or pointing to revoked/expired sessions are strictly rejected with 401 Unauthorized.
+    - Preserved public and optional-auth behavior: endpoints with optional auth degrade to public/coarsened view when supplied with invalid or revoked tokens without crashing.
+  - Session Cleanup Lifecycle Audit:
+    - Audited `cleanup_expired_sessions(db, retention_days=30)`: verified that active unexpired sessions and recently revoked sessions (retained for RFC 6819 replay detection) are never deleted.
+    - Confirmed invocation status: `cleanup_expired_sessions` is an explicit maintenance routine; no background cron or automated scheduler is running in this phase (scheduling remains pending for operational deployment phase).
+  - Automated Verification & Security Tests:
+    - Added 9 new tests to `tests/test_api_security_hardening.py` (total 33 tests in suite, all passed):
+      - Missing `sid` rejected (401).
+      - Malformed non-UUID `sid` rejected (401).
+      - Unknown session ID rejected (401).
+      - Session belonging to different user rejected (401).
+      - Revoked session in DB rejected (401).
+      - Expired session in DB rejected (401).
+      - Standard login session-bound token succeeds (200).
+      - Optional auth with missing/revoked/invalid session degrades cleanly to public view (200).
+      - Cleanup preserves active and recently revoked sessions for replay detection.
+    - Backend regression suite: 73 passed in 127s across hardening, auth, reports, recovery, and geo privacy suites.
+    - Static analysis: Ruff check (0 errors), Ruff format (clean, 107 files), strict Mypy (0 issues across 93 source files), Alembic check (0 unmanaged schema drift).
+  - Zero Git write operations executed.
+
+
 
 
 

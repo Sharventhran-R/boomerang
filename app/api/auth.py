@@ -1,12 +1,15 @@
+import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import delete, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, reusable_oauth2_optional
 from app.core.config import settings
 from app.db.database import get_db
 from app.db.models import User, UserSession
@@ -22,6 +25,9 @@ from app.services.auth import (
     generate_refresh_token,
     hash_password,
     hash_token,
+    revoke_token,
+    revoke_user_tokens,
+    verify_access_token,
     verify_password,
 )
 
@@ -83,7 +89,6 @@ async def login(user_in: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
         )
 
     # Generate tokens
-    access_token = create_access_token(user.id)
     refresh_token = generate_refresh_token()
     hashed_rt = hash_token(refresh_token)
 
@@ -96,6 +101,10 @@ async def login(user_in: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
     )
     db.add(session)
     await db.commit()
+    await db.refresh(session)
+
+    # Generate session-bound access token (Phase 10.2.1 / SEC-AUTH-003)
+    access_token = create_access_token(user.id, session_id=session.id)
 
     return {
         "access_token": access_token,
@@ -123,18 +132,45 @@ async def refresh_token_endpoint(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if session.revoked_at is not None:
+        # Compromise detection (RFC 6819 § 5.2.2.3):
+        # A revoked refresh token was re-presented.
+        # Invalidate all active sessions for this user.
+        await db.execute(
+            update(UserSession)
+            .where(
+                UserSession.user_id == session.user_id,
+                UserSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
+        revoke_user_tokens(session.user_id)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token revoked",
+            detail="Refresh token revoked. All active sessions invalidated.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     if session.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify the user account still exists and is valid
+    user = await db.get(User, session.user_id)
+    if user is None:
+        session.revoked_at = datetime.now(UTC)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account not found or disabled",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     # Rotate refresh token
@@ -156,9 +192,10 @@ async def refresh_token_endpoint(
 
     db.add(new_session)
     await db.commit()
+    await db.refresh(new_session)
 
-    # Generate new access token
-    access_token = create_access_token(session.user_id)
+    # Generate new access token bound to rotated session
+    access_token = create_access_token(session.user_id, session_id=new_session.id)
 
     return {
         "access_token": access_token,
@@ -168,10 +205,12 @@ async def refresh_token_endpoint(
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)) -> None:
-    """
-    Logout by revoking the refresh session.
-    """
+async def logout(
+    req: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    raw_token: str | None = Depends(reusable_oauth2_optional),
+) -> None:
+    """Logout by revoking refresh session and invalidating current access tokens."""
     hashed_rt = hash_token(req.refresh_token)
 
     result = await db.execute(
@@ -181,7 +220,34 @@ async def logout(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)) -
 
     if session and session.revoked_at is None:
         session.revoked_at = datetime.now(UTC)
-        await db.commit()
+        revoke_user_tokens(session.user_id)
+
+    if raw_token:
+        # Also revoke access token session in PostgreSQL if sid is present
+        token_data = verify_access_token(raw_token)
+        if token_data:
+            sid_str = token_data.get("sid")
+            if sid_str:
+                try:
+                    sid_uuid = uuid.UUID(sid_str)
+                    tok_session = await db.get(UserSession, sid_uuid)
+                    if tok_session and tok_session.revoked_at is None:
+                        tok_session.revoked_at = datetime.now(UTC)
+                except ValueError:
+                    pass
+        revoke_token(raw_token)
+
+    await db.commit()
+
+
+async def cleanup_expired_sessions(db: AsyncSession, retention_days: int = 30) -> int:
+    """Delete user sessions expired longer than retention_days (Phase 10.2.1)."""
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    result = await db.execute(
+        delete(UserSession).where(UserSession.expires_at < cutoff)
+    )
+    await db.commit()
+    return int(cast(CursorResult[Any], result).rowcount)
 
 
 @users_router.get("/me", response_model=UserResponse)
