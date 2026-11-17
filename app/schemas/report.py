@@ -57,8 +57,15 @@ class ReportImageResponse(BaseModel):
     content_type: str
     file_size: int
     created_at: datetime
+    image_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def populate_image_url(self) -> "ReportImageResponse":
+        if self.image_url is None:
+            self.image_url = f"/api/v1/reports/{self.report_id}/images/{self.id}"
+        return self
 
 
 class ReportResponse(BaseModel):

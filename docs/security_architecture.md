@@ -398,10 +398,34 @@ Incoming UploadFile
        │
        ▼
 [Persist to MinIO/S3 Storage]
- Key: reports/{report_id}/{uuid.uuid4()}.webp
- Content-Type: image/webp
+ Key: reports/{report_id}/{uuid.uuid4()}.{ext}
+ Content-Type: verified mime (image/jpeg, image/png, image/webp)
  ACL: Private
 ```
+
+### 8.2 Image Processing & Location Privacy Guarantees
+1. **Magic-Byte Signature Verification**: Rejects any file whose initial bytes do not match standard JPEG (`\xFF\xD8\xFF`), PNG (`\x89PNG\r\n\x1a\n`), or WebP (`RIFF...WEBP`). Spoofed MIME types and mismatched extensions are rejected with HTTP 422.
+2. **Decompression Bomb Protection**: Restricts dimensions to a maximum of 4096 x 4096 pixels and total pixels to 25,000,000 via Pillow's `MAX_IMAGE_PIXELS` to prevent memory exhaustion and DOS attacks.
+3. **Streamed Chunk Bounding**: Reads multipart uploads in 64KB chunks, immediately aborting with HTTP 413 if the total file size exceeds 5 MB.
+4. **Zero EXIF / Location Privacy**: Re-encodes uploaded images into a clean, newly constructed pixel canvas before saving. All EXIF metadata, GPS coordinates (`GPSInfo`), device serial numbers, software tags, and embedded text chunks are completely stripped.
+5. **Orientation Transposition**: Calls `ImageOps.exif_transpose` prior to stripping metadata to ensure photos taken on mobile devices retain correct visual orientation.
+
+### 8.3 Storage Architecture, Retrieval Authorization & Security Headers
+1. **Private S3 Isolation**: The storage bucket (`settings.S3_BUCKET_NAME`) is private. Direct public access to S3/MinIO is prohibited.
+2. **Backend-Generated Object Keys**: Stored objects are assigned server-generated paths: `reports/{report_id}/{uuid.uuid4()}.{ext}`. Path traversal sequences (`../`) are rejected with HTTP 400.
+3. **Retrieval Endpoint (`GET /api/v1/reports/{report_id}/images/{image_id}`)**:
+   - **Active Reports**: Publicly accessible; serves the sanitized, metadata-free image.
+   - **Terminal / Inactive Reports**: If a report is CANCELLED, RESOLVED, or EXPIRED, access is restricted exclusively to the report creator (HTTP 403 for unauthorized callers).
+   - **Hardened Security Headers**:
+     - `Content-Security-Policy: default-src 'none'; sandbox`: Neutralizes SVG/HTML-based stored XSS risks.
+     - `X-Content-Type-Options: nosniff`: Prevents MIME-sniffing attacks.
+     - `Cache-Control: no-store`: Prevents browsers, intermediary caches, and CDNs from persisting status-dependent image responses that become restricted once a report transitions to a terminal state (RESOLVED, CANCELLED, EXPIRED).
+     - `Content-Disposition: inline`: Enables safe rendering in Flutter image viewers.
+
+### 8.4 Storage Resilience & Compensating Cleanup
+1. **Compensating Rollback**: Because PostgreSQL and S3 do not share an ACID transaction, image upload uses compensating transactions. If `db.commit()` fails after putting an object into S3, `delete_image_from_s3` is immediately invoked on the uploaded key, preventing orphaned storage objects.
+2. **Per-Report Image Limit & Concurrency**: Each report is limited to a maximum of 5 images. Upload transactions acquire an exclusive row lock (`SELECT ... FOR UPDATE`) on the parent report, serializing concurrent uploads and preventing race conditions from bypassing the 5-image ceiling.
+3. **Rate Limiting**: Image uploads are throttled at 10 requests per minute per user ID (with secondary IP ceiling) via the distributed Redis sliding-window limiter.
 
 ---
 

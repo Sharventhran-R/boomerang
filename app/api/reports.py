@@ -29,8 +29,12 @@ from app.schemas.report import (
 )
 from app.services import quota as quota_service
 from app.services import report as report_service
+from app.services import storage as storage_service
 from app.services.geo import coarsen_coordinate
-from app.services.rate_limiter import check_reports_discovery_rate_limits
+from app.services.rate_limiter import (
+    check_image_upload_rate_limits,
+    check_reports_discovery_rate_limits,
+)
 
 reports_router = APIRouter()
 
@@ -236,12 +240,20 @@ async def update_report(
 async def upload_image(
     report_id: uuid.UUID,
     file: UploadFile,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
+    """Upload an image for a report.
+
+    Enforces ownership authorization, rate limiting, file signature validation,
+    dimension limits, decompression bomb defenses, and EXIF/GPS stripping.
     """
-    Upload an image for a report. Only the creator can do this.
-    """
+    await check_image_upload_rate_limits(
+        request=request, user_id=current_user.id, response=response
+    )
+
     report = await report_service.get_report_by_id(db, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -251,12 +263,52 @@ async def upload_image(
             status_code=403, detail="Not authorized to upload images to this report"
         )
 
-    try:
-        return await report_service.upload_report_image(db, report, file)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
-        )
+    return await report_service.upload_report_image(db, report, file)
+
+
+@reports_router.get(
+    "/{report_id}/images/{image_id}",
+    response_class=Response,
+)
+async def get_report_image_content(
+    report_id: uuid.UUID,
+    image_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> Response:
+    """Retrieves sanitized image content.
+
+    Public discovery allows viewing active report images.
+    Non-active (terminal/cancelled) reports require creator authorization.
+    """
+    report = await report_service.get_report_by_id(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # Authorization: Non-active reports require creator ownership
+    if report.status != ReportStatus.ACTIVE:
+        if current_user is None or report.created_by_user_id != current_user.id:
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access images for this report",
+            )
+
+    image = next((img for img in report.images if img.id == image_id), None)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    body_bytes, content_type = await storage_service.get_image_from_s3(image.object_key)
+
+    return Response(
+        content=body_bytes,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "inline",
+        },
+    )
 
 
 @reports_router.delete(

@@ -47,6 +47,7 @@
 - [x] Phase 10.2.1 — Access Token Revocation Reliability Audit (Session-Bound Revocation & TTL Pruning).
 - [x] Phase 10.2.2 — Legacy Token Compatibility & Session Cleanup Verification (Strict Session Binding & Retention Audit).
 - [x] Phase 10.3 — Distributed Rate Limiting & Abuse Prevention (Redis Sliding Window, Trusted Proxies, PostgreSQL Authoritative Quotas, IST Midnight Resets).
+- [x] Phase 10.4 — Report & Image Upload Security (Magic Byte Validation, Decompression Bomb Defenses, Complete EXIF/GPS Stripping, S3 Isolation, Security Headers, Compensating Rollback).
 - [ ] **PENDING: Live Kafka consumer-group rebalance integration test.**
   Before deploying multiple consumer instances or multiple application replicas, create and run an integration test using the actual `EventConsumer` implementation and a live Kafka broker. The test should:
   1. Start two consumer instances using the same consumer group and topic.
@@ -1624,6 +1625,47 @@
     - Focused test suites: `test_rate_limiter.py` (9 passed), `test_report_quotas.py` (6 passed), `test_geo.py` & `test_geo_privacy_adversarial.py` (10 passed), `test_outbox.py` & `test_notification_e2e.py` (27 passed).
     - Static analysis: Ruff check (0 errors), Ruff format (115 files clean), strict Mypy (0 issues across 101 source files), Alembic check (0 unmanaged schema drift).
     - Frontend quality gates: `flutter analyze` clean (0 issues, ran in 5.4s), 212 unit/widget tests passed.
+  - Zero Git write operations executed.
+- 2026-11-17: Completed Phase 10.4 — Report & Image Upload Security.
+  - Comprehensive Initial Architecture Audit:
+    - Identified entry point (`POST /api/v1/reports/{report_id}/images`), revealed prior reliance on client MIME types without magic byte validation, confirmed unstripped EXIF/GPS preservation in raw storage, discovered memory-exhaustion vulnerability from unbounded uploads, and documented lack of dedicated authenticated retrieval route.
+  - Security Implementation:
+    - Added `Pillow>=10.0.0` dependency (`requirements.txt`).
+    - Configured settings in `app/core/config.py`: `IMAGE_MAX_FILE_SIZE_BYTES=5242880` (5 MB), `IMAGE_MAX_DIMENSION=4096`, `IMAGE_MAX_TOTAL_PIXELS=25000000`, `IMAGE_MAX_PER_REPORT=5`, `RATE_LIMIT_IMAGE_UPLOAD_LIMIT=10` req/min.
+    - Implemented `app/services/image_security.py`:
+      - Magic-byte signature verification for JPEG (`\xFF\xD8\xFF`), PNG (`\x89PNG\r\n\x1a\n`), and WebP (`RIFF...WEBP`). Rejects spoofed MIME types, shell scripts, SVGs, HTML, and executables with HTTP 422.
+      - Streamed 64KB chunk reader rejecting files >5MB with HTTP 413 before full RAM buffering.
+      - Bounded pixel allocation via `Image.MAX_IMAGE_PIXELS` and 4096px dimension checks (HTTP 422 on decompression bombs).
+      - Forced full decoder `.load()` catching truncated or corrupted data.
+      - Orientation normalization via `ImageOps.exif_transpose` prior to metadata stripping.
+      - Clean canvas re-encoding completely dropping all EXIF metadata, GPSInfo tags (`0x8825`), camera hardware serials, and comments.
+      - Post-condition assertion verifying 0 EXIF/GPS tags remain in output buffer.
+    - Enhanced storage service (`app/services/storage.py`):
+      - Replaced raw S3 uploads with sanitized buffers; returns `(object_key, file_size, content_type)`.
+      - Enforced path traversal defense rejecting paths not starting with `reports/` or containing `..`.
+      - Added `get_image_from_s3` for backend retrieval and hardened `delete_image_from_s3`.
+    - Report service concurrency & compensating transactions (`app/services/report.py`):
+      - Enforced parent report row-locking (`SELECT ... FOR UPDATE`) to serialize concurrent uploads and prevent exceeding 5 images per report.
+      - Implemented compensating transaction: deletes uploaded S3 object immediately if database commit fails.
+    - Rate limiting (`app/services/rate_limiter.py`):
+      - Wired `check_image_upload_rate_limits` (10 uploads/min per user ID + secondary IP ceiling) into `upload_image`.
+    - Secure image retrieval endpoint (`app/api/reports.py`):
+      - Added `GET /api/v1/reports/{report_id}/images/{image_id}`.
+      - Active reports: public access to sanitized images.
+      - Terminal/inactive reports: restricted to creator only (HTTP 403).
+      - Injected hardening headers: `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` (preventing intermediary/CDN persistence across terminal status transitions), and `Content-Disposition: inline`.
+    - Auto-populated `image_url` in `app/schemas/report.py` (`ReportImageResponse`).
+    - Updated documentation in `docs/security_architecture.md` (Sections 8.2-8.4) and `docs/security_requirements.md` (`[SEC-IMG-001]` - `[SEC-IMG-005]`).
+  - Full Verification Results:
+    - Created dedicated verification suite `tests/test_image_upload_security.py` with 16 tests: all 16 passed in 16.03s.
+    - Verified `tests/test_reports.py`: all 11 passed in 29.09s.
+    - Verified `tests/test_api_security_hardening.py`: all 33 passed in 57.32s.
+    - Full backend pytest suite: 418 passed in 673.42s (100% clean).
+    - Ruff check: 0 errors (all checks passed).
+    - Ruff format: 117 files verified formatted.
+    - Strict Mypy: 0 errors across 103 source files.
+    - Alembic check: clean, 0 unmanaged schema drift.
+    - Frontend quality gates: `flutter analyze` clean (0 issues, ran in 7.0s), 30 regression widget tests passed.
   - Zero Git write operations executed.
 
 

@@ -1,13 +1,15 @@
+import logging
 import uuid
 from typing import Any, cast
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile, status
 from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from sqlalchemy import asc, desc, func, null, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.db.models import Report, ReportCategory, ReportImage, ReportStatus, ReportType
 from app.schemas.geo import GeoSearchParams
 from app.schemas.report import CreateReportRequest, UpdateReportRequest
@@ -312,28 +314,72 @@ async def list_reports(
     }
 
 
+logger = logging.getLogger(__name__)
+
+
 async def upload_report_image(
     db: AsyncSession, report: Report, file: UploadFile
 ) -> ReportImage:
-    # report must be already loaded and authorized
-    if len(report.images) >= 5:
-        raise ValueError("Maximum 5 images allowed per report")
+    """Validates limits under row lock, uploads sanitized image, and commits record.
 
-    object_key, file_size = await upload_image_to_s3(report.id, file)
+    Compensating transaction: If the database commit fails, the uploaded S3 object
+    is deleted immediately to eliminate orphaned objects.
+    """
+    # 1. Lock parent report row to serialize concurrent image uploads for this report
+    report_lock_stmt = select(Report).where(Report.id == report.id).with_for_update()
+    locked_report_res = await db.execute(report_lock_stmt)
+    if locked_report_res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
+        )
 
+    # 2. Count existing images under row lock
+    count_stmt = select(func.count(ReportImage.id)).where(
+        ReportImage.report_id == report.id
+    )
+    current_count = (await db.execute(count_stmt)).scalar_one()
+    if current_count >= settings.IMAGE_MAX_PER_REPORT:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Maximum {settings.IMAGE_MAX_PER_REPORT} images allowed per report",
+        )
+
+    # 3. Upload sanitized image to S3
+    object_key, file_size, content_type = await upload_image_to_s3(report.id, file)
+
+    # 4. Persist database record with compensating cleanup on rollback
     image = ReportImage(
         report_id=report.id,
         object_key=object_key,
-        content_type=file.content_type,
+        content_type=content_type,
         file_size=file_size,
     )
     db.add(image)
-    await db.commit()
-    await db.refresh(image)
-    return image
+    try:
+        await db.commit()
+        await db.refresh(image)
+        return image
+    except Exception as exc:
+        await db.rollback()
+        # Compensating cleanup: Delete orphaned S3 object
+        try:
+            await delete_image_from_s3(object_key)
+        except Exception as s3_exc:
+            logger.error(
+                "Failed to clean up orphaned S3 object %s: %s", object_key, s3_exc
+            )
+        raise exc
 
 
 async def delete_report_image(db: AsyncSession, image: ReportImage) -> None:
-    await delete_image_from_s3(image.object_key)
+    """Deletes the image record from PostgreSQL and removes the object from S3."""
+    object_key = image.object_key
     await db.delete(image)
     await db.commit()
+    # Delete from S3 only after database commit succeeds
+    try:
+        await delete_image_from_s3(object_key)
+    except Exception as exc:
+        logger.error(
+            "Failed to delete S3 object %s after DB commit: %s", object_key, exc
+        )

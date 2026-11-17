@@ -226,3 +226,31 @@ async def check_reports_discovery_rate_limits(
             fail_closed=False,
         )
         enforce_rate_limit(ip_res, response=None)
+
+
+async def check_image_upload_rate_limits(
+    request: Request,
+    user_id: uuid.UUID,
+    response: Response | None = None,
+) -> None:
+    """Enforces rate limiting on report image uploads (per user ID and IP)."""
+    # 1. User-level upload limit
+    user_key = f"rl:images:upload:usr:{user_id}"
+    user_res = await check_rate_limit(
+        key=user_key,
+        limit=settings.RATE_LIMIT_IMAGE_UPLOAD_LIMIT,
+        window_seconds=60,
+        fail_closed=True,
+    )
+    enforce_rate_limit(user_res, response=response)
+
+    # 2. Secondary IP ceiling
+    client_ip = get_client_ip(request)
+    ip_key = f"rl:images:upload:ip:{client_ip}"
+    ip_res = await check_rate_limit(
+        key=ip_key,
+        limit=settings.RATE_LIMIT_IMAGE_UPLOAD_LIMIT * 2,
+        window_seconds=60,
+        fail_closed=True,
+    )
+    enforce_rate_limit(ip_res, response=None)

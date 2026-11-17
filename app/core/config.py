@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_REGISTER_IP_LIMIT: int = Field(default=5, ge=1)
     RATE_LIMIT_REPORTS_ANONYMOUS_LIMIT: int = Field(default=10, ge=1)
     RATE_LIMIT_REPORTS_AUTHENTICATED_LIMIT: int = Field(default=30, ge=1)
+    RATE_LIMIT_IMAGE_UPLOAD_LIMIT: int = Field(default=10, ge=1)
+
+    # Image Upload Security & Resource Constraints (Phase 10.4)
+    IMAGE_MAX_FILE_SIZE_BYTES: int = Field(default=5 * 1024 * 1024, ge=1)
+    IMAGE_MAX_DIMENSION: int = Field(default=4096, ge=100)
+    IMAGE_MAX_TOTAL_PIXELS: int = Field(default=25_000_000, ge=10_000)
+    IMAGE_MAX_PER_REPORT: int = Field(default=5, ge=1)
 
     # Authoritative Report Quotas (PostgreSQL)
     QUOTA_TIMEZONE: str = "Asia/Kolkata"

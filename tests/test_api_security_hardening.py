@@ -25,6 +25,7 @@ from typing import Any
 import jwt
 import pytest
 from httpx import AsyncClient
+from PIL import Image
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -407,7 +408,9 @@ async def test_cross_user_report_image_upload_and_delete_forbidden(
     )
     report_id = create_res.json()["id"]
 
-    fake_img = io.BytesIO(b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 100)
+    buf_a = io.BytesIO()
+    Image.new("RGB", (32, 32), color="red").save(buf_a, "JPEG")
+    fake_img = io.BytesIO(buf_a.getvalue())
     upload_res = await client.post(
         f"/api/v1/reports/{report_id}/images",
         headers=headers_a,
@@ -417,7 +420,9 @@ async def test_cross_user_report_image_upload_and_delete_forbidden(
     image_id = upload_res.json()["id"]
 
     # User B attempts image upload to User A's report -> 403 Forbidden
-    fake_img_b = io.BytesIO(b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 100)
+    buf_b = io.BytesIO()
+    Image.new("RGB", (32, 32), color="blue").save(buf_b, "JPEG")
+    fake_img_b = io.BytesIO(buf_b.getvalue())
     b_upload = await client.post(
         f"/api/v1/reports/{report_id}/images",
         headers=headers_b,

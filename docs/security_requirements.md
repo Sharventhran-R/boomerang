@@ -269,3 +269,51 @@
 - **Threat Addressed**: `THR-PRIVACY-001`
 - **Verification Method**: Create user with reports, images, and devices. Execute account deletion; assert user profile is scrubbed and S3 images are removed.
 
+---
+
+## 11. Image Upload & File Storage Security (SEC-IMG)
+
+### [SEC-IMG-001] File Signature Detection & Strict Format Validation
+- **Description**: Report image uploads must be validated using true magic-byte file signatures rather than untrusted client MIME headers or extensions.
+- **Behavioral Specification**:
+  - Allowed formats are strictly limited to JPEG (`\xFF\xD8\xFF`), PNG (`\x89PNG\r\n\x1a\n`), and WebP (`RIFF...WEBP`).
+  - Mismatched or non-image payloads (e.g. SVG, shell scripts, HTML, executables) must be rejected with HTTP `422 Unprocessable Content`.
+  - File extensions in server-generated storage keys must reflect verified image signatures rather than client-supplied filenames.
+- **Threat Addressed**: `THR-FILE-001`, `THR-API-001`
+- **Verification Method**: Submit non-image payload with `image/jpeg` header; assert HTTP 422. Submit valid JPEG named `.png`; assert server normalizes key to `.jpg`.
+
+### [SEC-IMG-002] Resource Exhaustion & Decompression Bomb Protection
+- **Description**: The system must enforce bounded memory allocation during upload streaming and image parsing.
+- **Behavioral Specification**:
+  - Maximum upload file size is strictly capped at 5 MB (`settings.IMAGE_MAX_FILE_SIZE_BYTES`); files exceeding this limit must be rejected with HTTP `413 Content Too Large` before full memory buffering.
+  - Image dimensions must not exceed 4096 x 4096 pixels; pixel count must not exceed 25,000,000 pixels (`settings.IMAGE_MAX_TOTAL_PIXELS`).
+- **Threat Addressed**: `THR-RESOURCE-001`
+- **Verification Method**: Upload 5.1 MB file (assert 413). Upload 4097x50 px image (assert 422). Upload decompression bomb (assert 422).
+
+### [SEC-IMG-003] Location Privacy & Complete EXIF/GPS Metadata Stripping
+- **Description**: Uploaded photographs must not expose physical incident coordinates or camera hardware identifiers through metadata.
+- **Behavioral Specification**:
+  - All incoming images must be decoded and re-encoded into a clean pixel canvas before storage.
+  - All EXIF tags, GPSInfo coordinates (tag `0x8825`), camera make/model, and software timestamps must be 100% stripped.
+  - Orientation must be normalized via `ImageOps.exif_transpose` prior to metadata removal.
+- **Threat Addressed**: `THR-LOCATION-001`, `THR-PRIVACY-001`
+- **Verification Method**: Upload JPEG with embedded GPS tags. Fetch image from `GET /api/v1/reports/{report_id}/images/{image_id}`; assert 0x8825 and all EXIF tags are absent.
+
+### [SEC-IMG-004] Image Authorization & Hardened Security Headers
+- **Description**: Report images must be protected by strict ownership checks and security headers.
+- **Behavioral Specification**:
+  - Only the report creator may upload or delete images (HTTP 403 for other users).
+  - Active reports permit public image viewing; non-active reports (CANCELLED, RESOLVED, EXPIRED) restrict retrieval to the report creator.
+  - Responses from the image retrieval endpoint must include `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, and `Cache-Control: no-store` to prevent public or intermediary cache persistence across report status transitions.
+- **Threat Addressed**: `THR-API-001`, `THR-FILE-002`
+- **Verification Method**: Attempt cross-user upload (assert 403). Transition report to RESOLVED and attempt unauthorized viewing (assert 403). Inspect response headers on successful view (assert CSP, nosniff, and Cache-Control: no-store).
+
+### [SEC-IMG-005] Storage Resilience, Compensating Cleanup & Upload Rate Limiting
+- **Description**: Prevent orphaned object accumulation and upload flooding.
+- **Behavioral Specification**:
+  - Compensating rollback: If database transaction fails after S3 upload, the uploaded object is immediately deleted from S3.
+  - Each report is limited to at most 5 images (`settings.IMAGE_MAX_PER_REPORT`), enforced under parent report row-locking.
+  - Image uploads are throttled to 10 requests per minute per user ID.
+- **Threat Addressed**: `THR-RESOURCE-002`, `THR-STORAGE-001`
+- **Verification Method**: Simulate database failure on upload (assert S3 object deleted). Upload 6 images to 1 report (assert 6th returns 422). Exceed 10 uploads/min (assert 429).
+

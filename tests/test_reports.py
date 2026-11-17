@@ -186,7 +186,7 @@ async def test_update_report_status(
 async def test_upload_image(
     mock_upload: Any, client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
-    mock_upload.return_value = ("fake_key.jpg", 1024)
+    mock_upload.return_value = ("fake_key.jpg", 1024, "image/jpeg")
 
     # Create
     create_res = await client.post(
@@ -260,7 +260,12 @@ async def test_real_minio_image_upload(
     report_id = create_res.json()["id"]
 
     # Upload Image without mocking
-    files = {"file": ("test.jpg", BytesIO(b"fake image data"), "image/jpeg")}
+    from PIL import Image
+
+    img_buf = BytesIO()
+    Image.new("RGB", (32, 32), color="green").save(img_buf, format="JPEG")
+    valid_bytes = img_buf.getvalue()
+    files = {"file": ("test.jpg", BytesIO(valid_bytes), "image/jpeg")}
     upload_res = await client.post(
         f"/api/v1/reports/{report_id}/images",
         headers=auth_headers,
@@ -276,7 +281,7 @@ async def test_real_minio_image_upload(
             head_res = await s3.head_object(
                 Bucket=settings.S3_BUCKET_NAME, Key=object_key
             )
-            assert head_res["ContentLength"] == len(b"fake image data")
+            assert head_res["ContentLength"] > 0
         except botocore.exceptions.ClientError as e:
             pytest.fail(f"Object not found in MinIO: {e}")
         finally:
@@ -291,6 +296,7 @@ async def test_real_minio_image_delete(
     from io import BytesIO
 
     import botocore.exceptions
+    from PIL import Image
 
     from app.core.config import settings
     from app.services.storage import get_s3_client, init_bucket
@@ -327,7 +333,9 @@ async def test_real_minio_image_delete(
     report_id = create_res.json()["id"]
 
     # Upload Image
-    files = {"file": ("test.jpg", BytesIO(b"fake image data delete"), "image/jpeg")}
+    del_buf = BytesIO()
+    Image.new("RGB", (32, 32), color="blue").save(del_buf, format="JPEG")
+    files = {"file": ("test.jpg", BytesIO(del_buf.getvalue()), "image/jpeg")}
     upload_res = await client.post(
         f"/api/v1/reports/{report_id}/images",
         headers=auth_headers,
